@@ -1,0 +1,42 @@
+.login-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+}
+
+.brand {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+
+  mat-form-field {
+    width: 100%;
+  }
+
+  button[type="submit"] {
+    height: 44px;
+    font-size: 16px;
+    margin-top: 8px;
+  }
+}
+
+.error {
+  color: #ef5350;
+  font-size: 14px;
+  margin: 0;
+  text-align: center;
+}

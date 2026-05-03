@@ -1,0 +1,17 @@
+{
+  "hosting": {
+    "site": "plannet-wos",
+    "public": "dist/plannet-wos/browser",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

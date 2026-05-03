@@ -1,0 +1,56 @@
+<mat-toolbar class="toolbar">
+  <img src="logo.png" alt="Plannet WOS" class="toolbar-logo" />
+  <span class="brand">Plannet WOS</span>
+  <span class="spacer"></span>
+
+  @if (isLoggedIn()) {
+    @if (isSuperAdmin()) {
+      <button mat-button (click)="goToSuperadmin()">
+        <mat-icon>admin_panel_settings</mat-icon>
+        Superadmin
+      </button>
+    }
+
+    <button mat-icon-button [matMenuTriggerFor]="userMenu">
+      <mat-icon>account_circle</mat-icon>
+    </button>
+    <mat-menu #userMenu="matMenu">
+      <div class="menu-header">{{ session()?.username }}</div>
+      <div class="menu-role">{{ session()?.role }}</div>
+      @if (session()?.allianceId) {
+        <div class="menu-alliance">Alliance: {{ session()?.allianceId }}</div>
+      }
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        Log out
+      </button>
+    </mat-menu>
+  } @else {
+    <button mat-button (click)="goToLogin()">
+      <mat-icon>login</mat-icon>
+      Admin Login
+    </button>
+  }
+</mat-toolbar>
+
+<div class="dashboard">
+  <div class="hero">
+    <img src="logo.png" alt="Plannet WOS" class="hero-logo" />
+    <h1>Plannet WOS</h1>
+    <p class="tagline">Alliance tools for Whiteout Survival</p>
+  </div>
+
+  <div class="app-grid">
+    @for (app of apps; track app.name) {
+      <mat-card class="app-tile" (click)="openApp(app)">
+        <div class="tile-icon" [style.background]="app.color">
+          <mat-icon>{{ app.icon }}</mat-icon>
+        </div>
+        <mat-card-content>
+          <h3>{{ app.name }}</h3>
+          <p>{{ app.description }}</p>
+        </mat-card-content>
+      </mat-card>
+    }
+  </div>
+</div>

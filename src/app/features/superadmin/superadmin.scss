@@ -1,0 +1,67 @@
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-left: 8px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.console {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.tab-content {
+  padding: 16px 0;
+}
+
+.form-card {
+  margin-bottom: 16px;
+}
+
+.inline-form {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-top: 8px;
+
+  mat-form-field {
+    flex: 1;
+    min-width: 140px;
+  }
+
+  button {
+    margin-top: 8px;
+    height: 44px;
+  }
+}
+
+.data-table {
+  width: 100%;
+
+  &.hidden {
+    display: none;
+  }
+}
+
+.msg-cell {
+  max-width: 300px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.empty {
+  text-align: center;
+  opacity: 0.5;
+  padding: 32px;
+}

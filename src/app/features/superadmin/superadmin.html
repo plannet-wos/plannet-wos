@@ -1,0 +1,154 @@
+<mat-toolbar class="toolbar">
+  <button mat-icon-button (click)="goBack()">
+    <mat-icon>arrow_back</mat-icon>
+  </button>
+  <span class="brand">Superadmin Console</span>
+  <span class="spacer"></span>
+  <button mat-icon-button (click)="logout()">
+    <mat-icon>logout</mat-icon>
+  </button>
+</mat-toolbar>
+
+<div class="console">
+  <mat-tab-group>
+
+    <!-- Accounts Tab -->
+    <mat-tab label="Accounts">
+      <div class="tab-content">
+        <mat-card class="form-card">
+          <mat-card-header>
+            <mat-card-title>Add Admin Account</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <form (ngSubmit)="addAccount()" class="inline-form">
+              <mat-form-field appearance="outline">
+                <mat-label>Username</mat-label>
+                <input matInput [(ngModel)]="newUsername" name="username" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Password</mat-label>
+                <input matInput [(ngModel)]="newPassword" name="password" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Alliance ID</mat-label>
+                <input matInput [(ngModel)]="newAllianceId" name="allianceId" />
+              </mat-form-field>
+              <button mat-flat-button color="primary" type="submit"
+                      [disabled]="!newUsername || !newPassword || !newAllianceId">
+                <mat-icon>add</mat-icon> Add
+              </button>
+            </form>
+          </mat-card-content>
+        </mat-card>
+
+        <table mat-table [dataSource]="accounts()" class="data-table">
+          <ng-container matColumnDef="username">
+            <th mat-header-cell *matHeaderCellDef>Username</th>
+            <td mat-cell *matCellDef="let row">{{ row.username }}</td>
+          </ng-container>
+          <ng-container matColumnDef="allianceId">
+            <th mat-header-cell *matHeaderCellDef>Alliance</th>
+            <td mat-cell *matCellDef="let row">{{ row.allianceId }}</td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let row">
+              <button mat-icon-button color="warn" (click)="deleteAccount(row)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="accountColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: accountColumns"></tr>
+        </table>
+      </div>
+    </mat-tab>
+
+    <!-- Alliances Tab -->
+    <mat-tab label="Alliances">
+      <div class="tab-content">
+        <mat-card class="form-card">
+          <mat-card-header>
+            <mat-card-title>Add Alliance</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <form (ngSubmit)="addAlliance()" class="inline-form">
+              <mat-form-field appearance="outline">
+                <mat-label>Alliance Name</mat-label>
+                <input matInput [(ngModel)]="newAllianceName" name="allianceName" />
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Server (optional)</mat-label>
+                <input matInput [(ngModel)]="newAllianceServer" name="server" />
+              </mat-form-field>
+              <button mat-flat-button color="primary" type="submit"
+                      [disabled]="!newAllianceName">
+                <mat-icon>add</mat-icon> Add
+              </button>
+            </form>
+          </mat-card-content>
+        </mat-card>
+
+        <table mat-table [dataSource]="alliances()" class="data-table">
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Name</th>
+            <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+          </ng-container>
+          <ng-container matColumnDef="server">
+            <th mat-header-cell *matHeaderCellDef>Server</th>
+            <td mat-cell *matCellDef="let row">{{ row.server }}</td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let row">
+              <button mat-icon-button color="warn" (click)="deleteAlliance(row)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="allianceColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: allianceColumns"></tr>
+        </table>
+      </div>
+    </mat-tab>
+
+    <!-- Feedback Tab -->
+    <mat-tab label="Feedback">
+      <div class="tab-content">
+        @if (feedback().length === 0) {
+          <p class="empty">No feedback yet</p>
+        }
+
+        <table mat-table [dataSource]="feedback()" class="data-table" [class.hidden]="feedback().length === 0">
+          <ng-container matColumnDef="app">
+            <th mat-header-cell *matHeaderCellDef>App</th>
+            <td mat-cell *matCellDef="let row">{{ row.app }}</td>
+          </ng-container>
+          <ng-container matColumnDef="message">
+            <th mat-header-cell *matHeaderCellDef>Message</th>
+            <td mat-cell *matCellDef="let row" class="msg-cell">{{ row.message }}</td>
+          </ng-container>
+          <ng-container matColumnDef="username">
+            <th mat-header-cell *matHeaderCellDef>From</th>
+            <td mat-cell *matCellDef="let row">{{ row.username || '—' }}</td>
+          </ng-container>
+          <ng-container matColumnDef="date">
+            <th mat-header-cell *matHeaderCellDef>Date</th>
+            <td mat-cell *matCellDef="let row">{{ row.createdAt | date:'short' }}</td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let row">
+              <button mat-icon-button color="warn" (click)="deleteFeedback(row)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="feedbackColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: feedbackColumns"></tr>
+        </table>
+      </div>
+    </mat-tab>
+
+  </mat-tab-group>
+</div>
