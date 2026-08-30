@@ -5,8 +5,10 @@ rules_version = '2';
 //     and writes are open on the collections it owns.
 //   • Alliance Wiki — same alliance-trust model (client-side admin password
 //     check, no Firebase Auth). Reads and writes are open on its collections.
-//   • SvS Preparation — same alliance-trust model. One open `svs_submissions`
-//     doc per player ID (the SvS prep survey, replacing the old Google Form).
+//   • SvS Preparation — same alliance-trust model. `svs_forms` holds one doc
+//     per round (superadmin-managed, see svs-prep's admin pages);
+//     `svs_submissions` holds one doc per (round, player ID) pair (the SvS
+//     prep survey, replacing the old Google Form).
 //   • A separate "saves" app — public 4-char codes, immutable docs. Its
 //     security must NOT be relaxed; only specific creates are allowed.
 //
@@ -107,18 +109,36 @@ service cloud.firestore {
     match /admin_feedback/{id}    { allow read, write: if true; }
 
     // --- SvS Preparation (open, alliance-trust — same model as above) --
-    // One doc per player ID (doc ID == the form's "player ID" answer,
-    // trimmed). A resubmission overwrites the existing doc for that player
-    // — see svs-submission.service.ts. Reads are open so the app can look
-    // up an existing submission before showing the "you already submitted"
-    // diff prompt. Basic shape check only (no real auth possible without a
-    // backend, same trade-off as wiki_articles above).
-    match /svs_submissions/{playerId} {
+    // One doc per (form, player ID) pair — doc ID == `${formId}_${playerId}`,
+    // scoped per SvS prep round (see svs_forms below) so the same player can
+    // submit once per round instead of one submission ever colliding across
+    // rounds. A resubmission for the same round overwrites the existing doc
+    // for that player — see svs-submission.service.ts. Reads are open so the
+    // app can look up an existing submission before showing the "you already
+    // submitted" diff prompt. Basic shape check only (no real auth possible
+    // without a backend, same trade-off as wiki_articles above).
+    match /svs_submissions/{docId} {
       allow read: if true;
-      allow create, update: if request.resource.data.playerId == playerId
+      allow create, update: if request.resource.data.formId is string
+        && request.resource.data.formId.size() > 0
+        && request.resource.data.formId + '_' + request.resource.data.playerId == docId
         && request.resource.data.allianceAndName is string
         && request.resource.data.allianceAndName.size() > 0
         && request.resource.data.allianceAndName.size() <= 200;
+      allow delete: if true;
+    }
+
+    // One doc per SvS prep round, created/edited from svs-prep's superadmin-only admin pages
+    // (client-side gated via the shared `accounts` collection above — same alliance-trust
+    // model, no real auth possible without a backend). Reads are open so the public survey can
+    // find "the currently open round." Basic shape check only.
+    match /svs_forms/{formId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.highestFcLevel in [3, 5, 8, 10]
+        && request.resource.data.battleDate is string
+        && request.resource.data.submissionsOpenAt is number
+        && request.resource.data.submissionsCloseAt is number
+        && request.resource.data.submissionsCloseAt > request.resource.data.submissionsOpenAt;
       allow delete: if true;
     }
 
