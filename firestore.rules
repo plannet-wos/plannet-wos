@@ -1,0 +1,161 @@
+rules_version = '2';
+
+// This Firebase project (tal-coordinator) is shared between four apps:
+//   • Foundry Planner — alliance-trust model, no auth (see CLAUDE.md). Reads
+//     and writes are open on the collections it owns.
+//   • Alliance Wiki — same alliance-trust model (client-side admin password
+//     check, no Firebase Auth). Reads and writes are open on its collections.
+//   • SvS Preparation — same alliance-trust model. One open `svs_submissions`
+//     doc per player ID (the SvS prep survey, replacing the old Google Form).
+//   • A separate "saves" app — public 4-char codes, immutable docs. Its
+//     security must NOT be relaxed; only specific creates are allowed.
+//
+// OWNERSHIP: this repo (plannet-wos, the hub) is the ONLY place this file is
+// allowed to live and be deployed from. Firestore rules are project-wide,
+// not per-app — every app repo used to carry its own full copy, and any
+// plain `firebase deploy` (not scoped with --only hosting) from ANY of
+// those repos would silently redeploy whatever rules happened to be sitting
+// there, clobbering collections it didn't know about. (This actually
+// happened: battle-calculator's copy went stale and would have default-
+// denied foundry-planner + alliance-wiki entirely if anyone had ever run an
+// unscoped deploy from it.) Other app repos do NOT have firestore.rules,
+// firestore.indexes.json, or a "firestore" key in firebase.json anymore —
+// on purpose, so they physically can't redeploy rules by accident.
+//
+// To add or change a collection: edit this file, then from THIS repo run
+//   firebase deploy --only firestore:rules --project tal-coordinator
+//
+// Anything not listed is default-denied so a future app can't accidentally
+// inherit access.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Foundry Planner (open per CLAUDE.md) -------------------------
+    match /alliances/{id}        { allow read, write: if true; }
+    match /players/{id}          { allow read, write: if true; }
+    match /tasks/{id}            { allow read, write: if true; }
+    match /assignments/{id}      { allow read, write: if true; }
+    match /autoPlanConfigs/{id}  { allow read, write: if true; }
+    match /feedback/{id}         { allow read, write: if true; }
+
+    // --- accounts (shared by both apps' admin/superadmin logins) ------
+    // Credentials used to be plaintext-readable by anyone — this closes
+    // that. There's no backend here (Cloud Functions need the paid Blaze
+    // plan, which this project intentionally avoids), so "login" can't be
+    // a server-verified read; instead it's a write that only succeeds if
+    // every field — crucially the password hash — already matches exactly.
+    // See password.util.ts in both apps for the hashing scheme, and
+    // auth.service.ts / article.service.ts for how login calls this.
+    //
+    // Reads are fully blocked: nobody, including the apps themselves, ever
+    // queries this collection directly again.
+    //
+    // Creates are fully blocked too: provisioning a new alliance's admin
+    // account is a manual/elevated step now, not self-service from the
+    // superadmin dashboard (see superadmin.ts).
+    //
+    // Deletes stay open — a delete carries no payload for a rule to check
+    // against, so there's no way to gate it on a password proof at all.
+    // Accepted as a low-stakes gap: worst case an account doc is deleted
+    // and has to be manually recreated.
+    //
+    // Updates must touch nothing but `lastLoginAt` (a server timestamp) —
+    // resupplying every other field (username, allianceId/role,
+    // passwordHash) exactly as stored is what proves the caller knows the
+    // current password. Any mismatch (wrong password → wrong hash, wrong
+    // alliance, wrong username) makes the diff include more than just
+    // `lastLoginAt`, and the whole write is rejected.
+    match /accounts/{username} {
+      allow read: if false;
+      allow create: if false;
+      allow delete: if true;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt'])
+                    && request.resource.data.lastLoginAt == request.time;
+    }
+
+    // --- Alliance Wiki ------------------------------------------------
+    // Who can publish/edit/delete an article can't be enforced here without
+    // real Auth: the wiki must stay publicly readable, and any "proof of
+    // adminship" a write could carry would become part of that same public
+    // document — copyable by anyone who ever sees one legitimate edit, not
+    // just leaked once. That's a deliberate, accepted trade-off (see the
+    // security-hardening plan this was designed against), not an oversight.
+    // What IS worth enforcing: basic shape, so a stray or malicious script
+    // can't corrupt content with garbage/oversized payloads.
+    match /wiki_articles/{id} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['allianceId', 'title', 'content', 'status', 'createdAt', 'updatedAt'])
+        && request.resource.data.status in ['published', 'draft']
+        && request.resource.data.title is string && request.resource.data.title.size() <= 200
+        && request.resource.data.content is string && request.resource.data.content.size() <= 300000
+        && request.resource.data.allianceId is string;
+      allow delete: if true;
+    }
+    match /article_feedback/{id} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasAll(['articleId', 'allianceId', 'content', 'createdAt'])
+        && request.resource.data.content is string && request.resource.data.content.size() <= 5000;
+      allow delete: if true;
+    }
+    // admin_feedback left open (allow read, write: if true) — reads can't
+    // be gated on a password proof at all (a read carries no payload for a
+    // rule to check), so this was always going to be either fully open or
+    // fully closed with the in-app viewer removed. Kept open by explicit
+    // choice: the submit form's "only the superadmin sees this" promise
+    // isn't literally true, but the alternative (dropping the feature)
+    // wasn't worth it for a low-stakes feedback inbox.
+    match /admin_feedback/{id}    { allow read, write: if true; }
+
+    // --- SvS Preparation (open, alliance-trust — same model as above) --
+    // One doc per player ID (doc ID == the form's "player ID" answer,
+    // trimmed). A resubmission overwrites the existing doc for that player
+    // — see svs-submission.service.ts. Reads are open so the app can look
+    // up an existing submission before showing the "you already submitted"
+    // diff prompt. Basic shape check only (no real auth possible without a
+    // backend, same trade-off as wiki_articles above).
+    match /svs_submissions/{playerId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.playerId == playerId
+        && request.resource.data.allianceAndName is string
+        && request.resource.data.allianceAndName.size() > 0
+        && request.resource.data.allianceAndName.size() <= 200;
+      allow delete: if true;
+    }
+
+    // --- Saves app (unchanged from previously-deployed ruleset) ------
+    match /saves/{code} {
+      // Reads are open — anyone with the 4-char code can load that save.
+      allow read: if true;
+
+      // Creates require:
+      //   • code-shaped document ID (4 chars, alphabet matches client)
+      //   • payload has the schema we expect (recommendations is OPTIONAL — old
+      //     saves without it still load, just with no cached cards)
+      //   • required fields are the right shape
+      //   • createdAt is the server timestamp (no client-set times)
+      allow create: if isValidCode(code)
+        && request.resource.data.keys().hasOnly(['v', 'heroes', 'gear', 'stats', 'recommendations', 'createdAt'])
+        && request.resource.data.keys().hasAll(['v', 'heroes', 'gear', 'stats', 'createdAt'])
+        && request.resource.data.v == 1
+        && request.resource.data.heroes is list
+        && request.resource.data.heroes.size() <= 32
+        && request.resource.data.gear is map
+        && request.resource.data.stats is map
+        && request.resource.data.createdAt == request.time;
+
+      // Saves are immutable — never let a client overwrite or delete a code
+      // that's already in use.
+      allow update, delete: if false;
+    }
+
+    // Default-deny everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// 4-char codes from the alphabet 23456789ABCDEFGHJKMNPQRSTUVWXYZ.
+function isValidCode(code) {
+  return code.matches('^[2-9A-HJ-NP-Z]{4}$');
+}
