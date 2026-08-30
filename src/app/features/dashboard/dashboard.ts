@@ -30,7 +30,7 @@ const APPS: AppTile[] = [
     name: 'SvS Preparation',
     description: 'Sign up your availability and speedups ahead of the Survivor vs Survivor battle',
     icon: 'military_tech',
-    logo: 'svs-prep-logo.svg',
+    logo: 'svs-prep-logo.png',
     url: 'https://svs-prep.web.app',
     color: '#8e0000',
   },
