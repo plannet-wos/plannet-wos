@@ -1,0 +1,29 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>SvS Preparation</title>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e53935"/>
+      <stop offset="100%" stop-color="#8e0000"/>
+    </linearGradient>
+  </defs>
+  <path
+    d="M55,25 L145,25 L165,45 L165,95 C165,150 135,180 100,195 C65,180 35,150 35,95 L35,45 Z"
+    fill="url(#bg)" stroke="#5a0000" stroke-width="4" stroke-linejoin="round"
+  />
+  <path
+    d="M60,33 L140,33 L157,50 L157,95 C157,143 130,169 100,183 C70,169 43,143 43,95 L43,50 Z"
+    fill="none" stroke="#ff8a80" stroke-width="1.5" opacity="0.5"
+  />
+  <circle cx="100" cy="100" r="45" fill="#fff8f5" stroke="#b71c1c" stroke-width="4"/>
+  <g stroke="#263238" stroke-width="3" stroke-linecap="round">
+    <line x1="100" y1="55" x2="100" y2="63"/>
+    <line x1="145" y1="100" x2="137" y2="100"/>
+    <line x1="100" y1="145" x2="100" y2="137"/>
+    <line x1="55" y1="100" x2="63" y2="100"/>
+  </g>
+  <g stroke="#263238" stroke-linecap="round">
+    <line x1="100" y1="100" x2="110" y2="82" stroke-width="4.5"/>
+    <line x1="100" y1="100" x2="76" y2="80" stroke-width="3.5"/>
+  </g>
+  <circle cx="100" cy="100" r="4" fill="#b71c1c"/>
+</svg>

@@ -44,7 +44,11 @@
     @for (app of apps; track app.name) {
       <mat-card class="app-tile" (click)="openApp(app)">
         <div class="tile-icon" [style.background]="app.color">
-          <mat-icon>{{ app.icon }}</mat-icon>
+          @if (app.logo) {
+            <img [src]="app.logo" alt="" class="tile-logo" />
+          } @else {
+            <mat-icon>{{ app.icon }}</mat-icon>
+          }
         </div>
         <mat-card-content>
           <h3>{{ app.name }}</h3>
