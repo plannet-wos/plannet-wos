@@ -10,9 +10,12 @@ import { AuthService } from '../../core/services/auth.service';
 interface AppTile {
   name: string;
   description: string;
+  /** Material icon name — ignored when `logo` is set. */
   icon: string;
   url: string;
   color: string;
+  /** Optional app-specific logo image, shown instead of `icon` when present. */
+  logo?: string;
 }
 
 const APPS: AppTile[] = [
@@ -22,6 +25,14 @@ const APPS: AppTile[] = [
     icon: 'construction',
     url: 'https://foundry-planner.web.app',
     color: '#ef6c00',
+  },
+  {
+    name: 'SvS Preparation',
+    description: 'Sign up your availability and speedups ahead of the Survivor vs Survivor battle',
+    icon: 'military_tech',
+    logo: 'svs-prep-logo.svg',
+    url: 'https://svs-prep.web.app',
+    color: '#8e0000',
   },
   {
     name: 'Battle Calculator',
