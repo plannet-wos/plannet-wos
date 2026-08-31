@@ -1,0 +1,41 @@
+name: Deploy to Firebase
+
+# This repo is the sole owner/deployer of Firestore rules & indexes for the shared
+# tal-coordinator project (see README's "Firestore rules ownership") in addition to its own
+# Hosting site — unlike every other app repo in the suite, which only ever deploys `--only
+# hosting`. Every push to main deploys both.
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Write Firebase service account key
+        run: echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/firebase-sa.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy Firestore rules & indexes
+        run: npx firebase-tools deploy --only firestore --project tal-coordinator --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: tal-coordinator
+          channelId: live

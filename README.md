@@ -41,15 +41,25 @@ every app repo that used Firestore, which meant any plain `firebase deploy` (not
 it didn't know about. (This wasn't hypothetical — battle-calculator's copy had drifted and would
 have done exactly that.)
 
-**To add or change a Firestore collection for any app:** edit `firestore.rules` here, then deploy
-from this repo:
+**To add or change a Firestore collection for any app:** edit `firestore.rules` here — every push
+to `main` deploys it automatically (see Deploying below), no manual step needed anymore.
 
-```bash
-firebase deploy --only firestore:rules --project tal-coordinator
-```
+An app's own repo only ever needs `firebase deploy --only hosting` (or, for svs-prep, its own
+GitHub Actions equivalent) — its `firebase.json` has no `"firestore"` key, so nothing else is at
+risk of being touched.
 
-An app's own repo only ever needs `firebase deploy --only hosting` — its `firebase.json` has no
-`"firestore"` key, so nothing else is at risk of being touched.
+## Deploying
+
+Every push to `main` auto-deploys via `.github/workflows/deploy.yml`: build, then
+`firebase deploy --only firestore` (rules + indexes) followed by
+`FirebaseExtended/action-hosting-deploy` for Hosting — no manual `firebase deploy` needed. Unlike
+every other app repo, this one deploys Firestore rules/indexes too, per the ownership note above.
+
+Both steps authenticate with a `FIREBASE_SERVICE_ACCOUNT` secret (an org-level secret shared
+across the plannet-wos repos). It needs enough IAM roles for **both** Hosting and Firestore
+rules/indexes deploys — if the Firestore step ever starts failing with a permissions error, the
+service account is likely missing the Firebase Rules Admin / Cloud Datastore Index Admin roles
+(or grant it the broader Firebase Admin role) in the Google Cloud Console for `tal-coordinator`.
 
 ## Contributing
 
