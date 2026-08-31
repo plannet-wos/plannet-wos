@@ -8,7 +8,8 @@ rules_version = '2';
 //   • SvS Preparation — same alliance-trust model. `svs_forms` holds one doc
 //     per round (superadmin-managed, see svs-prep's admin pages);
 //     `svs_submissions` holds one doc per (round, player ID) pair (the SvS
-//     prep survey, replacing the old Google Form).
+//     prep survey, replacing the old Google Form); `svs_assignments` holds
+//     one doc per round with the live computed appointment schedule.
 //   • A separate "saves" app — public 4-char codes, immutable docs. Its
 //     security must NOT be relaxed; only specific creates are allowed.
 //
@@ -139,6 +140,25 @@ service cloud.firestore {
         && request.resource.data.submissionsOpenAt is number
         && request.resource.data.submissionsCloseAt is number
         && request.resource.data.submissionsCloseAt > request.resource.data.submissionsOpenAt;
+      allow delete: if true;
+    }
+
+    // One doc per SvS prep round holding the live computed appointment schedule — see svs-prep's
+    // core/algorithms/assignment.ts and svs-assignment.service.ts. Entirely derived/computed
+    // client-side from svs_submissions above (never user-authored free text) and fully
+    // recomputed (not merged) on every write, so only a shape check is needed — same
+    // alliance-trust model as the rest of this app. Reads are open so the public
+    // /assignments/:id page can show the live schedule to any player, without auth.
+    match /svs_assignments/{formId} {
+      allow read: if true;
+      allow create, update: if request.resource.data.formId == formId
+        && request.resource.data.construction is map
+        && request.resource.data.research is map
+        && request.resource.data.training is map
+        && request.resource.data.unassignedConstruction is list
+        && request.resource.data.unassignedResearch is list
+        && request.resource.data.unassignedTraining is list
+        && request.resource.data.computedAt is number;
       allow delete: if true;
     }
 
