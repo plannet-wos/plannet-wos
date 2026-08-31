@@ -1,9 +1,15 @@
 name: Deploy to Firebase
 
-# This repo is the sole owner/deployer of Firestore rules & indexes for the shared
-# tal-coordinator project (see README's "Firestore rules ownership") in addition to its own
-# Hosting site — unlike every other app repo in the suite, which only ever deploys `--only
-# hosting`. Every push to main deploys both.
+# This repo is the sole owner/deployer of Firestore rules for the shared tal-coordinator project
+# (see README's "Firestore rules ownership") in addition to its own Hosting site — unlike every
+# other app repo in the suite, which only ever deploys `--only hosting`. Every push to main
+# deploys both.
+#
+# Scoped to `firestore:rules` only, not the broader `firestore` target: firestore.indexes.json is
+# currently empty, and deploying indexes needs its own IAM role (Cloud Datastore Index Admin) on
+# top of what rules deploys need — not worth granting for a no-op. If real indexes ever get added
+# there, grant that role to the FIREBASE_SERVICE_ACCOUNT service account and switch this back to
+# `--only firestore`.
 
 on:
   push:
@@ -28,8 +34,8 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      - name: Deploy Firestore rules & indexes
-        run: npx firebase-tools deploy --only firestore --project tal-coordinator --non-interactive
+      - name: Deploy Firestore rules
+        run: npx firebase-tools deploy --only firestore:rules --project tal-coordinator --non-interactive
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
 

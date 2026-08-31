@@ -51,15 +51,18 @@ risk of being touched.
 ## Deploying
 
 Every push to `main` auto-deploys via `.github/workflows/deploy.yml`: build, then
-`firebase deploy --only firestore` (rules + indexes) followed by
-`FirebaseExtended/action-hosting-deploy` for Hosting — no manual `firebase deploy` needed. Unlike
-every other app repo, this one deploys Firestore rules/indexes too, per the ownership note above.
+`firebase deploy --only firestore:rules` followed by `FirebaseExtended/action-hosting-deploy` for
+Hosting — no manual `firebase deploy` needed. Unlike every other app repo, this one deploys
+Firestore rules too, per the ownership note above. Scoped to rules only, not the broader
+`firestore` target — `firestore.indexes.json` is currently empty, and deploying indexes needs an
+extra IAM role not worth granting for a no-op; see the workflow file's comment for how to switch
+back to `--only firestore` if real indexes get added later.
 
 Both steps authenticate with a `FIREBASE_SERVICE_ACCOUNT` secret (an org-level secret shared
-across the plannet-wos repos). It needs enough IAM roles for **both** Hosting and Firestore
-rules/indexes deploys — if the Firestore step ever starts failing with a permissions error, the
-service account is likely missing the Firebase Rules Admin / Cloud Datastore Index Admin roles
-(or grant it the broader Firebase Admin role) in the Google Cloud Console for `tal-coordinator`.
+across the plannet-wos repos). It needs the **Firebase Hosting Admin** and **Firebase Rules
+Admin** + **Service Usage Consumer** roles — if the Firestore step ever starts failing with a
+permissions error, check those are still granted in the Google Cloud Console for
+`tal-coordinator`.
 
 ## Contributing
 
