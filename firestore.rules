@@ -66,14 +66,24 @@ service cloud.firestore {
     // --- alliances (now state-scoped — see the multi-state rollout plan) ------
     // Doc ID is composite, "{stateId}-{slug}", so alliance tags can repeat across states
     // without colliding (see plan notes on why the URL keeps the bare slug instead).
-    // Reads stay open — alliance names/config are public, same as before. Writes require an
-    // active state admin (or superadmin) whose own stateId matches the alliance being
-    // written — this is what actually replaces foundry-planner's old superadmin.ts alliance
-    // CRUD, which had no enforcement of its own beyond a client-side guard.
+    // Reads stay open — alliance names/config are public, same as before. Structural writes
+    // (create, delete, rename, re-scoping) require an active state admin (or superadmin)
+    // whose own stateId matches the alliance — this is what actually replaces
+    // foundry-planner's old superadmin.ts alliance CRUD, which had no enforcement of its own
+    // beyond a client-side guard. A narrower carve-out lets that alliance's own R4/R5 update
+    // just the day-to-day operational fields (battle times, cross-alliance flag) from
+    // foundry-planner's admin-dashboard — that was never a state_admin-level action, and
+    // foundry-planner's AllianceService.updateAlliance() only ever touches those fields.
     match /alliances/{id} {
       allow read: if true;
-      allow create, update, delete: if isActiveAccount() && myRank() <= 1
+      allow create, delete: if isActiveAccount() && myRank() <= 1
         && (myRank() == 0 || myAccount().stateId == request.resource.data.stateId);
+      allow update: if
+        (isActiveAccount() && myRank() <= 1
+          && (myRank() == 0 || myAccount().stateId == request.resource.data.stateId))
+        || (isActiveAccount() && myAccount().allianceId == id
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['finalTime', 'finalTimeL1', 'finalTimeL2', 'isCrossAlliance']));
     }
 
     match /players/{id}          { allow read, write: if true; }

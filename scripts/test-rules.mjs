@@ -56,6 +56,9 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
   for (const [uid, data] of Object.entries(accounts)) {
     await setDoc(doc(db, `accounts/${uid}`), data);
   }
+  await setDoc(doc(db, 'alliances/3038-eagle'), {
+    id: '3038-eagle', stateId: '3038', slug: 'eagle', name: 'Eagle', createdAt: 1,
+  });
 });
 
 // --- accounts: create (self-signup) ---
@@ -169,6 +172,27 @@ await check('superadmin can register a new state', async () => {
 await check('state_admin cannot register a new state', async () => {
   const db = testEnv.authenticatedContext('sa-3038').firestore();
   await assertFails(setDoc(doc(db, 'states/4002'), { id: '4002', createdAt: Date.now() }));
+});
+
+// --- alliances: the narrow R4/R5 operational-fields carve-out (foundry-planner's admin-dashboard) ---
+await check("R5 can update their OWN alliance's battle-time fields", async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'alliances/3038-eagle'), { finalTimeL1: '20:00', finalTimeL2: '21:00' }));
+});
+
+await check("R4 can update their OWN alliance's isCrossAlliance flag too — same carve-out, not just R5", async () => {
+  const db = testEnv.authenticatedContext('r4-active').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'alliances/3038-eagle'), { isCrossAlliance: true }));
+});
+
+await check('R5 cannot rename their alliance through the operational-fields carve-out', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(updateDoc(doc(db, 'alliances/3038-eagle'), { name: 'Renamed' }));
+});
+
+await check("R5 of a DIFFERENT alliance cannot touch eagle's battle times", async () => {
+  const db = testEnv.authenticatedContext('r5-wolf').firestore();
+  await assertFails(updateDoc(doc(db, 'alliances/3038-eagle'), { finalTimeL1: '22:00' }));
 });
 
 await testEnv.cleanup();
