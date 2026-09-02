@@ -5,6 +5,7 @@ import {
   collectionData,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   deleteDoc,
   query,
@@ -42,7 +43,24 @@ export class AllianceService {
     });
   }
 
+  async update(stateId: string, slug: string, updates: Partial<Omit<Alliance, 'id' | 'stateId' | 'slug'>>): Promise<void> {
+    await setDoc(doc(this.firestore, `alliances/${allianceId(stateId, slug)}`), updates, { merge: true });
+  }
+
+  /**
+   * Deletes the alliance doc plus every players/tasks/assignments doc scoped to it — the same
+   * cascade foundry-planner's superadmin.ts used to do itself before alliance management moved
+   * here. wiki_articles/article_feedback and svs_submissions are deliberately left alone: an
+   * alliance's wiki history and SvS records are worth keeping even after the alliance entry
+   * itself is retired, the way they already outlive a plain rename.
+   */
   async remove(stateId: string, slug: string): Promise<void> {
-    await deleteDoc(doc(this.firestore, `alliances/${allianceId(stateId, slug)}`));
+    const id = allianceId(stateId, slug);
+    const collections = ['players', 'tasks', 'assignments'];
+    const snapshots = await Promise.all(
+      collections.map((c) => getDocs(query(collection(this.firestore, c), where('allianceId', '==', id)))),
+    );
+    const deletes = snapshots.flatMap((snap) => snap.docs.map((d) => deleteDoc(d.ref)));
+    await Promise.all([...deletes, deleteDoc(doc(this.firestore, `alliances/${id}`))]);
   }
 }
