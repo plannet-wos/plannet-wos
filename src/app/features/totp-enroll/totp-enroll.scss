@@ -1,0 +1,63 @@
+.enroll-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.enroll-card {
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+
+.center {
+  display: flex;
+  justify-content: center;
+  padding: 32px 0;
+}
+
+.steps {
+  text-align: left;
+  font-size: 14px;
+  padding-left: 20px;
+}
+
+.qr {
+  width: 200px;
+  height: 200px;
+  margin: 8px auto;
+  display: block;
+}
+
+.manual-hint {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+
+.secret-key {
+  display: block;
+  font-size: 15px;
+  letter-spacing: 1px;
+  background: rgba(128, 128, 128, 0.15);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 16px;
+  word-break: break-all;
+}
+
+.otp-field {
+  width: 100%;
+}
+
+.error {
+  color: #ef5350;
+  font-size: 14px;
+}
+
+.success {
+  font-size: 15px;
+  margin-bottom: 16px;
+}

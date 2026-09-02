@@ -1,0 +1,46 @@
+<div class="enroll-wrapper">
+  <mat-card class="enroll-card">
+    <mat-card-header>
+      <mat-card-title>Set up your authenticator</mat-card-title>
+      <mat-card-subtitle>Required before your role request can be approved.</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      @if (loading()) {
+        <div class="center"><mat-spinner diameter="32"></mat-spinner></div>
+      } @else if (done()) {
+        <p class="success">Authenticator enrolled. Your request is now waiting for approval.</p>
+        <button mat-flat-button color="primary" (click)="goToLogin()">Back to login</button>
+      } @else {
+        <ol class="steps">
+          <li>Scan this code with Google Authenticator (or any TOTP app).</li>
+        </ol>
+
+        @if (qrDataUrl()) {
+          <img [src]="qrDataUrl()" alt="TOTP QR code" class="qr" />
+        }
+
+        <p class="manual-hint">Can't scan? Enter this key manually:</p>
+        <code class="secret-key">{{ secretKey() }}</code>
+
+        <mat-form-field appearance="outline" class="otp-field">
+          <mat-label>6-digit code</mat-label>
+          <input matInput [ngModel]="otp()" (ngModelChange)="otp.set($event)" name="otp"
+                 inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
+        </mat-form-field>
+
+        @if (error()) {
+          <p class="error">{{ error() }}</p>
+        }
+
+        <button mat-flat-button color="primary" (click)="onConfirm()" [disabled]="confirming() || otp().length !== 6">
+          @if (confirming()) {
+            <mat-spinner diameter="20"></mat-spinner>
+          } @else {
+            Confirm
+          }
+        </button>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

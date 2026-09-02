@@ -1,5 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -7,12 +7,14 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AuthService } from '../../core/services/auth.service';
+import { MultiFactorResolver } from 'firebase/auth';
+import { AuthService, MfaRequiredError } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-login',
   imports: [
     FormsModule,
+    RouterLink,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
@@ -27,25 +29,56 @@ export class LoginComponent {
   private auth = inject(AuthService);
   private router = inject(Router);
 
-  username = '';
+  email = '';
   password = '';
+  otp = '';
   hide = signal(true);
   loading = signal(false);
   error = signal('');
 
+  /** Set once login() reports the account has TOTP enrolled — switches the form to the code-entry step. */
+  pendingMfaResolver = signal<MultiFactorResolver | null>(null);
+
   async onLogin() {
-    if (!this.username || !this.password) return;
+    if (!this.email || !this.password) return;
 
     this.loading.set(true);
     this.error.set('');
 
-    const result = await this.auth.login(this.username, this.password);
-    this.loading.set(false);
-
-    if (result) {
+    try {
+      await this.auth.login(this.email, this.password);
       this.router.navigate(['/dashboard']);
-    } else {
-      this.error.set('Invalid username or password');
+    } catch (err) {
+      if (err instanceof MfaRequiredError) {
+        this.pendingMfaResolver.set(err.resolver);
+      } else {
+        this.error.set('Invalid email or password');
+      }
+    } finally {
+      this.loading.set(false);
     }
+  }
+
+  async onSubmitOtp() {
+    const resolver = this.pendingMfaResolver();
+    if (!resolver || !this.otp) return;
+
+    this.loading.set(true);
+    this.error.set('');
+
+    try {
+      await this.auth.completeMfaSignIn(resolver, this.otp);
+      this.router.navigate(['/dashboard']);
+    } catch {
+      this.error.set('Invalid authenticator code');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  cancelMfa() {
+    this.pendingMfaResolver.set(null);
+    this.otp = '';
+    this.error.set('');
   }
 }

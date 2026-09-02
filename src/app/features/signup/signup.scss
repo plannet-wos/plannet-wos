@@ -1,4 +1,4 @@
-.login-wrapper {
+.signup-wrapper {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -6,22 +6,16 @@
   padding: 16px;
 }
 
-.login-card {
+.signup-card {
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
 }
 
-.brand {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.login-form {
+.signup-form {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 8px;
 
   mat-form-field {
     width: 100%;
@@ -41,14 +35,8 @@
   text-align: center;
 }
 
-.signup-link {
+.login-link {
   text-align: center;
   margin-top: 8px;
   font-size: 14px;
-}
-
-.mfa-hint {
-  font-size: 14px;
-  opacity: 0.8;
-  margin: 0 0 8px;
 }

@@ -33,47 +33,97 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Foundry Planner (open per CLAUDE.md) -------------------------
-    match /alliances/{id}        { allow read, write: if true; }
+    // --- role hierarchy helpers (used by accounts/alliances/states below) ---
+    // Mirrors core/constants/roles.ts's rank table — must stay in sync with it by hand, same
+    // duplication discipline as password.util.ts before it (rules can't import app code).
+    function myAccount() {
+      return get(/databases/$(database)/documents/accounts/$(request.auth.uid)).data;
+    }
+    function myRank() {
+      return myAccount().rank;
+    }
+    function isActiveAccount() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/accounts/$(request.auth.uid))
+        && myAccount().status == 'active';
+    }
+    // superadmin (rank 0): any scope. state_admin (1): same stateId. r5 (2): same allianceId.
+    // r4 (3) can never satisfy this — nothing has rank > 3 for it to act on.
+    function sameScope(target) {
+      return myRank() == 0
+        || (myRank() == 1 && myAccount().stateId == target.stateId)
+        || (myRank() == 2 && myAccount().allianceId == target.allianceId);
+    }
+
+    // --- states (registry of game servers — see the multi-state rollout plan) --
+    // Read is open so the state picker can list them; creating a new state (onboarding a
+    // game server) and any other write is superadmin-only.
+    match /states/{stateId} {
+      allow read: if true;
+      allow write: if isActiveAccount() && myRank() == 0;
+    }
+
+    // --- alliances (now state-scoped — see the multi-state rollout plan) ------
+    // Doc ID is composite, "{stateId}-{slug}", so alliance tags can repeat across states
+    // without colliding (see plan notes on why the URL keeps the bare slug instead).
+    // Reads stay open — alliance names/config are public, same as before. Writes require an
+    // active state admin (or superadmin) whose own stateId matches the alliance being
+    // written — this is what actually replaces foundry-planner's old superadmin.ts alliance
+    // CRUD, which had no enforcement of its own beyond a client-side guard.
+    match /alliances/{id} {
+      allow read: if true;
+      allow create, update, delete: if isActiveAccount() && myRank() <= 1
+        && (myRank() == 0 || myAccount().stateId == request.resource.data.stateId);
+    }
+
     match /players/{id}          { allow read, write: if true; }
     match /tasks/{id}            { allow read, write: if true; }
     match /assignments/{id}      { allow read, write: if true; }
     match /autoPlanConfigs/{id}  { allow read, write: if true; }
     match /feedback/{id}         { allow read, write: if true; }
 
-    // --- accounts (shared by both apps' admin/superadmin logins) ------
-    // Credentials used to be plaintext-readable by anyone — this closes
-    // that. There's no backend here (Cloud Functions need the paid Blaze
-    // plan, which this project intentionally avoids), so "login" can't be
-    // a server-verified read; instead it's a write that only succeeds if
-    // every field — crucially the password hash — already matches exactly.
-    // See password.util.ts in both apps for the hashing scheme, and
-    // auth.service.ts / article.service.ts for how login calls this.
-    //
-    // Reads are fully blocked: nobody, including the apps themselves, ever
-    // queries this collection directly again.
-    //
-    // Creates are fully blocked too: provisioning a new alliance's admin
-    // account is a manual/elevated step now, not self-service from the
-    // superadmin dashboard (see superadmin.ts).
-    //
-    // Deletes stay open — a delete carries no payload for a rule to check
-    // against, so there's no way to gate it on a password proof at all.
-    // Accepted as a low-stakes gap: worst case an account doc is deleted
-    // and has to be manually recreated.
-    //
-    // Updates must touch nothing but `lastLoginAt` (a server timestamp) —
-    // resupplying every other field (username, allianceId/role,
-    // passwordHash) exactly as stored is what proves the caller knows the
-    // current password. Any mismatch (wrong password → wrong hash, wrong
-    // alliance, wrong username) makes the diff include more than just
-    // `lastLoginAt`, and the whole write is rejected.
-    match /accounts/{username} {
-      allow read: if false;
-      allow create: if false;
-      allow delete: if true;
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLoginAt'])
-                    && request.resource.data.lastLoginAt == request.time;
+    // --- accounts (real Firebase Auth identities now — see the multi-state rollout plan) --
+    // Doc ID is the Firebase Auth uid, not a username: this is what lets rules trust
+    // `request.auth.uid` as an actual identity across requests, which the old password-hash
+    // write-diff trick (see git history) never could — that's what made a real hierarchy and
+    // real TOTP possible at all. Four ranks, strictly hierarchical: superadmin(0) >
+    // state_admin(1) > r5(2) > r4(3). A rank may only ever act on a STRICTLY lower rank,
+    // within its own scope (global for superadmin, stateId for state_admin, allianceId for
+    // r5) — see sameScope() below. Every rank below superadmin must have mfaEnrolled == true
+    // BEFORE the rank above it can flip status to 'active' — enforced here, not just in the
+    // UI, via checking the PRE-write value (resource.data), not the one being written.
+    match /accounts/{uid} {
+      allow read: if request.auth != null
+        && (request.auth.uid == uid
+            || (isActiveAccount() && myRank() < resource.data.rank && sameScope(resource.data)));
+
+      // Candidate creates their own pending request. Never rank 0 — that account is
+      // hand-provisioned (no one above it to approve a self-request), and mfaEnrolled must
+      // start false — enrollment is a separate step, never claimed at signup time.
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.rank in [1, 2, 3]
+        && request.resource.data.mfaEnrolled == false;
+
+      allow update: if request.auth != null && (
+        // the candidate flipping their own mfaEnrolled flag once TOTP enrollment succeeds —
+        // the only field they may ever touch on their own still-pending doc
+        (request.auth.uid == uid && resource.data.status == 'pending'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mfaEnrolled'])
+          && request.resource.data.mfaEnrolled == true)
+        ||
+        // an eligible approver/revoker acting on a strictly-lower-rank target in their scope.
+        // resource.data.mfaEnrolled (the value already stored, before this write) must
+        // already be true — an approver's own write never sets it, so this can't be
+        // satisfied by anything the approver supplies themselves.
+        (isActiveAccount()
+          && myRank() < resource.data.rank
+          && myRank() < request.resource.data.rank
+          && sameScope(resource.data)
+          && resource.data.mfaEnrolled == true)
+      );
+
+      allow delete: if isActiveAccount() && myRank() == 0;
     }
 
     // --- Alliance Wiki ------------------------------------------------

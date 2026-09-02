@@ -1,11 +1,17 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../../core/services/auth.service';
+import { StatesService } from '../../core/services/states.service';
+import { RANK } from '../../core/constants/roles';
 
 interface AppTile {
   name: string;
@@ -16,6 +22,8 @@ interface AppTile {
   color: string;
   /** Optional app-specific logo image, shown instead of `icon` when present. */
   logo?: string;
+  /** True for apps that live behind state selection — their URL gets `/{stateId}` appended. */
+  stateScoped: boolean;
 }
 
 const APPS: AppTile[] = [
@@ -25,6 +33,7 @@ const APPS: AppTile[] = [
     icon: 'construction',
     url: 'https://foundry-planner.web.app',
     color: '#ef6c00',
+    stateScoped: true,
   },
   {
     name: 'SvS Preparation',
@@ -33,13 +42,7 @@ const APPS: AppTile[] = [
     logo: 'svs-prep-logo.png',
     url: 'https://svs-prep.web.app',
     color: '#8e0000',
-  },
-  {
-    name: 'Battle Calculator',
-    description: 'Scan gear, heroes, and stats to simulate battle outcomes',
-    icon: 'calculate',
-    url: 'https://wos-battle-calculator.web.app',
-    color: '#1565c0',
+    stateScoped: true,
   },
   {
     name: 'Alliance Wiki',
@@ -47,6 +50,15 @@ const APPS: AppTile[] = [
     icon: 'menu_book',
     url: 'https://alliance-wiki.web.app',
     color: '#2e7d32',
+    stateScoped: true,
+  },
+  {
+    name: 'Battle Calculator',
+    description: 'Scan gear, heroes, and stats to simulate battle outcomes',
+    icon: 'calculate',
+    url: 'https://wos-battle-calculator.web.app',
+    color: '#1565c0',
+    stateScoped: false,
   },
   {
     name: 'Furnace Calculator',
@@ -54,49 +66,85 @@ const APPS: AppTile[] = [
     icon: 'local_fire_department',
     url: 'https://furnace-calculator.web.app',
     color: '#e65100',
+    stateScoped: false,
   },
 ];
 
 @Component({
   selector: 'app-dashboard',
   imports: [
+    FormsModule,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
     MatToolbarModule,
     MatMenuModule,
+    MatFormFieldModule,
+    MatInputModule,
   ],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.scss',
 })
 export class DashboardComponent {
   private auth = inject(AuthService);
+  private statesService = inject(StatesService);
   private router = inject(Router);
 
-  readonly session = this.auth.session;
   readonly isLoggedIn = this.auth.isAuthenticated;
-  readonly isSuperAdmin = this.auth.isSuperAdmin;
-  readonly apps = APPS;
+  readonly account = this.auth.account;
+  readonly isSuperAdmin = computed(() => this.auth.rank() === RANK.SUPERADMIN);
+  readonly isStateAdminOrR5 = computed(() => {
+    const rank = this.auth.rank();
+    return rank !== null && rank <= RANK.R5 && this.auth.isActive();
+  });
+  readonly myAdminStateId = computed(() => this.account()?.stateId ?? null);
 
-  openApp(app: AppTile) {
-    const s = this.session();
-    if (s) {
-      const token = btoa(JSON.stringify(s));
-      window.open(`${app.url}?token=${encodeURIComponent(token)}`, '_self');
+  readonly apps = APPS;
+  readonly globalApps = APPS.filter((a) => !a.stateScoped);
+  readonly stateApps = APPS.filter((a) => a.stateScoped);
+
+  readonly states = toSignal(this.statesService.list$(), { initialValue: [] });
+  readonly selectedStateId = this.statesService.selectedStateId;
+  readonly manualStateEntry = signal('');
+
+  selectState(stateId: string): void {
+    this.statesService.selectState(stateId);
+  }
+
+  confirmManualState(): void {
+    const id = this.manualStateEntry().trim();
+    if (id) this.selectState(id);
+    this.manualStateEntry.set('');
+  }
+
+  changeState(): void {
+    this.statesService.clearSelection();
+  }
+
+  openApp(app: AppTile): void {
+    if (app.stateScoped) {
+      const stateId = this.selectedStateId();
+      if (!stateId) return; // picker is shown instead — see dashboard.html
+      window.open(`${app.url}/${stateId}`, '_self');
     } else {
       window.open(app.url, '_self');
     }
   }
 
-  goToLogin() {
+  goToStateAdmin(): void {
+    const stateId = this.myAdminStateId();
+    if (stateId) this.router.navigate([stateId, 'admin']);
+  }
+
+  goToLogin(): void {
     this.router.navigate(['/login']);
   }
 
-  goToSuperadmin() {
+  goToSuperadmin(): void {
     this.router.navigate(['/superadmin']);
   }
 
-  logout() {
+  logout(): void {
     this.auth.logout();
   }
 }

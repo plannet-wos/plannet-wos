@@ -48,3 +48,5 @@ Thumbs.db
 
 # Claude Code local config
 .claude/
+firestore-debug.log
+firebase-debug.log

@@ -8,38 +8,64 @@
     </mat-card-header>
 
     <mat-card-content>
-      <form (ngSubmit)="onLogin()" class="login-form">
-        <mat-form-field appearance="outline">
-          <mat-label>Username</mat-label>
-          <input matInput [(ngModel)]="username" name="username" autocomplete="username" />
-          <mat-icon matPrefix>person</mat-icon>
-        </mat-form-field>
+      @if (!pendingMfaResolver()) {
+        <form (ngSubmit)="onLogin()" class="login-form">
+          <mat-form-field appearance="outline">
+            <mat-label>Email</mat-label>
+            <input matInput [(ngModel)]="email" name="email" type="email" autocomplete="username" />
+            <mat-icon matPrefix>person</mat-icon>
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Password</mat-label>
-          <input matInput [(ngModel)]="password" name="password"
-                 [type]="hide() ? 'password' : 'text'"
-                 autocomplete="current-password" />
-          <mat-icon matPrefix>lock</mat-icon>
-          <button mat-icon-button matSuffix type="button"
-                  (click)="hide.set(!hide())">
-            <mat-icon>{{ hide() ? 'visibility_off' : 'visibility' }}</mat-icon>
-          </button>
-        </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Password</mat-label>
+            <input matInput [(ngModel)]="password" name="password"
+                   [type]="hide() ? 'password' : 'text'"
+                   autocomplete="current-password" />
+            <mat-icon matPrefix>lock</mat-icon>
+            <button mat-icon-button matSuffix type="button"
+                    (click)="hide.set(!hide())">
+              <mat-icon>{{ hide() ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+          </mat-form-field>
 
-        @if (error()) {
-          <p class="error">{{ error() }}</p>
-        }
-
-        <button mat-flat-button color="primary" type="submit"
-                [disabled]="loading() || !username || !password">
-          @if (loading()) {
-            <mat-spinner diameter="20"></mat-spinner>
-          } @else {
-            Log in
+          @if (error()) {
+            <p class="error">{{ error() }}</p>
           }
-        </button>
-      </form>
+
+          <button mat-flat-button color="primary" type="submit"
+                  [disabled]="loading() || !email || !password">
+            @if (loading()) {
+              <mat-spinner diameter="20"></mat-spinner>
+            } @else {
+              Log in
+            }
+          </button>
+
+          <a routerLink="/signup" class="signup-link">Request access</a>
+        </form>
+      } @else {
+        <form (ngSubmit)="onSubmitOtp()" class="login-form">
+          <p class="mfa-hint">Enter the 6-digit code from your authenticator app.</p>
+          <mat-form-field appearance="outline">
+            <mat-label>Authenticator code</mat-label>
+            <input matInput [(ngModel)]="otp" name="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
+            <mat-icon matPrefix>shield</mat-icon>
+          </mat-form-field>
+
+          @if (error()) {
+            <p class="error">{{ error() }}</p>
+          }
+
+          <button mat-flat-button color="primary" type="submit" [disabled]="loading() || !otp">
+            @if (loading()) {
+              <mat-spinner diameter="20"></mat-spinner>
+            } @else {
+              Verify
+            }
+          </button>
+          <button mat-button type="button" (click)="cancelMfa()">Back</button>
+        </form>
+      }
     </mat-card-content>
   </mat-card>
 </div>

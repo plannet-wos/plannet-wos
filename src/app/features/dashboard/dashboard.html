@@ -10,15 +10,24 @@
         Superadmin
       </button>
     }
+    @if (isStateAdminOrR5()) {
+      <button mat-button (click)="goToStateAdmin()">
+        <mat-icon>shield</mat-icon>
+        Admin console
+      </button>
+    }
 
     <button mat-icon-button [matMenuTriggerFor]="userMenu">
       <mat-icon>account_circle</mat-icon>
     </button>
     <mat-menu #userMenu="matMenu">
-      <div class="menu-header">{{ session()?.username }}</div>
-      <div class="menu-role">{{ session()?.role }}</div>
-      @if (session()?.allianceId) {
-        <div class="menu-alliance">Alliance: {{ session()?.allianceId }}</div>
+      <div class="menu-header">{{ account()?.email }}</div>
+      <div class="menu-role">{{ account()?.role }}</div>
+      @if (account()?.stateId) {
+        <div class="menu-alliance">State: {{ account()?.stateId }}</div>
+      }
+      @if (account()?.allianceId) {
+        <div class="menu-alliance">Alliance: {{ account()?.allianceId }}</div>
       }
       <button mat-menu-item (click)="logout()">
         <mat-icon>logout</mat-icon>
@@ -40,8 +49,9 @@
     <p class="tagline">Alliance tools for Whiteout Survival</p>
   </div>
 
+  <h2 class="section-title">Free tools</h2>
   <div class="app-grid">
-    @for (app of apps; track app.name) {
+    @for (app of globalApps; track app.name) {
       <mat-card class="app-tile" (click)="openApp(app)">
         <div class="tile-icon" [style.background]="app.color">
           @if (app.logo) {
@@ -57,4 +67,52 @@
       </mat-card>
     }
   </div>
+
+  <h2 class="section-title">Alliance tools</h2>
+
+  @if (!selectedStateId()) {
+    <mat-card class="state-picker">
+      <mat-card-content>
+        <p>Pick your state (game server) to unlock these tools.</p>
+        @if (states().length > 0) {
+          <div class="state-chips">
+            @for (s of states(); track s.id) {
+              <button mat-stroked-button (click)="selectState(s.id)">{{ s.name || s.id }}</button>
+            }
+          </div>
+        }
+        <div class="manual-state">
+          <mat-form-field appearance="outline">
+            <mat-label>Or enter your state number</mat-label>
+            <input matInput [ngModel]="manualStateEntry()" (ngModelChange)="manualStateEntry.set($event)" />
+          </mat-form-field>
+          <button mat-flat-button color="primary" (click)="confirmManualState()" [disabled]="!manualStateEntry()">
+            Go
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  } @else {
+    <div class="state-banner">
+      <span>State {{ selectedStateId() }}</span>
+      <button mat-button (click)="changeState()">Change</button>
+    </div>
+    <div class="app-grid">
+      @for (app of stateApps; track app.name) {
+        <mat-card class="app-tile" (click)="openApp(app)">
+          <div class="tile-icon" [style.background]="app.color">
+            @if (app.logo) {
+              <img [src]="app.logo" alt="" class="tile-logo" />
+            } @else {
+              <mat-icon>{{ app.icon }}</mat-icon>
+            }
+          </div>
+          <mat-card-content>
+            <h3>{{ app.name }}</h3>
+            <p>{{ app.description }}</p>
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+  }
 </div>

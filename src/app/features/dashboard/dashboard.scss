@@ -77,6 +77,50 @@
   }
 }
 
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.6;
+  margin: 32px 0 12px;
+}
+
+.state-picker {
+  margin-bottom: 16px;
+
+  .state-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0;
+  }
+
+  .manual-state {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 8px;
+
+    mat-form-field {
+      flex: 1;
+    }
+
+    button {
+      margin-top: 8px;
+    }
+  }
+}
+
+.state-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  opacity: 0.8;
+  margin-bottom: 12px;
+}
+
 .app-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

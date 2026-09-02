@@ -1,0 +1,66 @@
+<div class="signup-wrapper">
+  <mat-card class="signup-card">
+    <mat-card-header>
+      <mat-card-title>Request access</mat-card-title>
+      <mat-card-subtitle>
+        You'll enroll an authenticator app next, then a superior role approves the request.
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form (ngSubmit)="onSubmit()" class="signup-form">
+        <mat-form-field appearance="outline">
+          <mat-label>Email</mat-label>
+          <input matInput [(ngModel)]="email" name="email" type="email" autocomplete="username" required />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input matInput [(ngModel)]="password" name="password" type="password" autocomplete="new-password" required />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>State (game server) number</mat-label>
+          <input matInput [(ngModel)]="stateId" name="stateId" (ngModelChange)="onStateChange()" required />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Requested role</mat-label>
+          <mat-select [(ngModel)]="rank" name="rank" required>
+            @for (r of requestableRanks; track r) {
+              <mat-option [value]="r">{{ roleLabel[r === RANK.STATE_ADMIN ? 'state_admin' : r === RANK.R5 ? 'r5' : 'r4'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        @if (needsAlliance()) {
+          <mat-form-field appearance="outline">
+            <mat-label>Alliance</mat-label>
+            <mat-select [(ngModel)]="allianceSlug" name="allianceSlug" required>
+              @for (a of alliancesForState(); track a.id) {
+                <mat-option [value]="a.slug">{{ a.name }}</mat-option>
+              }
+              @if (alliancesForState().length === 0) {
+                <mat-option disabled>No alliances registered for this state yet</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        }
+
+        @if (error()) {
+          <p class="error">{{ error() }}</p>
+        }
+
+        <button mat-flat-button color="primary" type="submit" [disabled]="loading()">
+          @if (loading()) {
+            <mat-spinner diameter="20"></mat-spinner>
+          } @else {
+            Continue to authenticator setup
+          }
+        </button>
+
+        <a routerLink="/login" class="login-link">Already have an account? Log in</a>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>
