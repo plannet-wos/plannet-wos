@@ -36,18 +36,28 @@ export class AccountsService {
     return snap.exists() ? (snap.data() as Account) : null;
   }
 
-  /** Candidate creates their own pending request. Never for RANK.SUPERADMIN — see REQUESTABLE_RANKS. */
+  /**
+   * Candidate creates their own pending request. Never for RANK.SUPERADMIN — see
+   * REQUESTABLE_RANKS. stateId/allianceId are omitted entirely (not set to `undefined`) when
+   * not applicable to the requested rank — the Firestore client SDK rejects a plain `undefined`
+   * field value at the setDoc() call itself, before the write ever reaches the network. That
+   * used to orphan the just-created Firebase Auth user (a state_admin request has no
+   * allianceId): signup would throw here, leaving no accounts/{uid} doc behind, so the
+   * candidate could still log in — Auth doesn't know anything went wrong — but had no rank
+   * anywhere and no pending request for anyone to approve, and retrying signUp() failed with
+   * auth/email-already-in-use since the Auth user really was created the first time.
+   */
   async requestRole(params: RequestRoleParams): Promise<void> {
     const account: Account = {
       uid: params.uid,
       email: params.email,
       role: ROLE_BY_RANK[params.rank],
       rank: params.rank,
-      stateId: params.stateId,
-      allianceId: params.allianceId,
       status: 'pending',
       mfaEnrolled: false,
       requestedAt: Date.now(),
+      ...(params.stateId !== undefined ? { stateId: params.stateId } : {}),
+      ...(params.allianceId !== undefined ? { allianceId: params.allianceId } : {}),
     };
     await setDoc(this.ref(params.uid), account);
   }

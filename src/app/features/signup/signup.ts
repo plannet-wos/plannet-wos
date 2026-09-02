@@ -70,21 +70,44 @@ export class SignupComponent {
 
     try {
       const user = await this.auth.signUp(this.email, this.password);
-      await this.accounts.requestRole({
-        uid: user.uid,
-        email: this.email,
-        rank: this.rank,
-        // state_admin is scoped by stateId directly; r5/r4 get stateId denormalized from
-        // their alliance (so state-admin scope checks never need a second lookup) plus
-        // their own allianceId.
-        stateId: this.stateId,
-        allianceId: this.needsAlliance() ? composeAllianceId(this.stateId, this.allianceSlug) : undefined,
-      });
-      this.router.navigate(['/enroll-totp']);
+      await this.finishRequest(user.uid);
     } catch (err) {
-      this.error.set((err as Error).message ?? 'Could not create account');
+      if ((err as { code?: string }).code === 'auth/email-already-in-use') {
+        // Most likely this exact email got signed up before but the accounts/{uid} request
+        // doc never got written (a previous attempt died between the two steps — this used
+        // to always happen for a state_admin request, see requestRole()'s doc comment).
+        // Firebase Auth already has the user; try to pick the signup back up instead of
+        // leaving the candidate stuck re-submitting into the same error forever.
+        try {
+          const user = await this.auth.login(this.email, this.password);
+          if (await this.accounts.getAccount(user.uid)) {
+            this.error.set('An account already exists for this email — try logging in instead.');
+          } else {
+            await this.finishRequest(user.uid);
+            return;
+          }
+        } catch {
+          this.error.set('An account already exists for this email, and this password doesn\'t match it. Try logging in, or use a different email.');
+        }
+      } else {
+        this.error.set((err as Error).message ?? 'Could not create account');
+      }
     } finally {
       this.loading.set(false);
     }
+  }
+
+  private async finishRequest(uid: string): Promise<void> {
+    await this.accounts.requestRole({
+      uid,
+      email: this.email,
+      rank: this.rank!,
+      // state_admin is scoped by stateId directly; r5/r4 get stateId denormalized from
+      // their alliance (so state-admin scope checks never need a second lookup) plus
+      // their own allianceId.
+      stateId: this.stateId,
+      allianceId: this.needsAlliance() ? composeAllianceId(this.stateId, this.allianceSlug) : undefined,
+    });
+    this.router.navigate(['/enroll-totp']);
   }
 }
