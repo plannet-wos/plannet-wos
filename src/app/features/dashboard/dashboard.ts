@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../../core/services/auth.service';
 import { StatesService } from '../../core/services/states.service';
 import { RANK } from '../../core/constants/roles';
+import { environment } from '../../../environments/environment';
 
 interface AppTile {
   name: string;
@@ -31,7 +32,7 @@ const APPS: AppTile[] = [
     name: 'Foundry Planner',
     description: 'Organize alliance Foundry Battle strategies, sign-ups, and battle plans',
     icon: 'construction',
-    url: 'https://foundry-planner.web.app',
+    url: environment.sisterApps.foundryPlanner,
     color: '#ef6c00',
     stateScoped: true,
   },
@@ -40,7 +41,7 @@ const APPS: AppTile[] = [
     description: 'Sign up your availability and speedups ahead of the Survivor vs Survivor battle',
     icon: 'military_tech',
     logo: 'svs-prep-logo.png',
-    url: 'https://svs-prep.web.app',
+    url: environment.sisterApps.svsPrep,
     color: '#8e0000',
     stateScoped: true,
   },
@@ -48,7 +49,7 @@ const APPS: AppTile[] = [
     name: 'Alliance Wiki',
     description: 'Shared knowledge base for alliance guides, tips, and resources',
     icon: 'menu_book',
-    url: 'https://alliance-wiki.web.app',
+    url: environment.sisterApps.allianceWiki,
     color: '#2e7d32',
     stateScoped: true,
   },

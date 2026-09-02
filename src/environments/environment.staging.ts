@@ -3,6 +3,11 @@
 // `staging` build configuration (see angular.json's fileReplacements) — never used by default.
 export const environment = {
   production: false,
+  sisterApps: {
+    foundryPlanner: 'https://foundry-planner-staging.web.app',
+    svsPrep: 'https://svs-prep-staging.web.app',
+    allianceWiki: 'https://alliance-wiki-staging.web.app',
+  },
   firebase: {
     apiKey: "AIzaSyBI8SXYmf4AbOy-11VQn7qbhDagaxV-Rok",
     authDomain: "plannet-wos-staging.firebaseapp.com",
