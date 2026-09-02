@@ -4,9 +4,14 @@ import { AuthService } from '../services/auth.service';
 import { RANK, Rank } from '../constants/roles';
 
 /** Any signed-in Firebase Auth user, active or still pending — for the TOTP-enrollment step, which happens before approval. */
-export const signedInGuard: CanActivateFn = () => {
+export const signedInGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
+  // Must await this first: on a fresh page load (a direct URL, a reload), Firebase Auth's
+  // persisted-session restore is itself async — checking isAuthenticated() synchronously
+  // here can catch a genuinely signed-in user in the brief window before it resolves, and
+  // wrongly bounce them to /login. See AuthService.whenReady()'s doc comment.
+  await auth.whenReady();
   return auth.isAuthenticated() || router.createUrlTree(['/login']);
 };
 
@@ -17,9 +22,10 @@ export const signedInGuard: CanActivateFn = () => {
  * see roles.ts's header comment for why those two are different rules.
  */
 export function minRankGuard(maxRank: Rank): CanActivateFn {
-  return () => {
+  return async () => {
     const auth = inject(AuthService);
     const router = inject(Router);
+    await auth.whenReady(); // see signedInGuard's comment
     const rank = auth.rank();
     if (auth.isActive() && rank !== null && rank <= maxRank) return true;
     return router.createUrlTree(['/login']);
@@ -40,9 +46,10 @@ export const authGuard: CanActivateFn = minRankGuard(RANK.R4);
  * enforcement is still Firestore Rules.
  */
 export function stateScopedGuard(maxRank: Rank): CanActivateFn {
-  return (route) => {
+  return async (route) => {
     const auth = inject(AuthService);
     const router = inject(Router);
+    await auth.whenReady(); // see signedInGuard's comment
     const account = auth.account();
     const rank = auth.rank();
     const stateId = route.paramMap.get('stateId');
