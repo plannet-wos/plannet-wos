@@ -83,7 +83,18 @@ export class AuthService {
     this.unsubAccount?.();
     this.unsubAccount = null;
     this._account.set(null);
+
+    // Resolve whatever gate was already pending BEFORE replacing the resolver — a guard's
+    // `await whenReady()` from just before this call captured the *old* promise; overwriting
+    // `settledResolve` without firing it first orphans that promise forever, since nothing
+    // else holds a reference to its resolver. That's a permanent hang, not just a stale read:
+    // exactly what turned "navigate to /enroll-totp while the persisted session is still
+    // restoring" into a blank page that never finishes loading. Letting that old awaiter
+    // proceed here is safe — it just re-reads the (fresher) signals being set above, same as
+    // if it had awaited the new gate instead.
+    const previousResolve = this.settledResolve;
     this.settledPromise = new Promise((resolve) => { this.settledResolve = resolve; });
+    previousResolve();
 
     if (user) {
       this.unsubAccount = onSnapshot(doc(this.firestore, `accounts/${user.uid}`), (snap) => {
