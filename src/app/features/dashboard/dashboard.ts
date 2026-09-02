@@ -98,7 +98,11 @@ export class DashboardComponent {
     const rank = this.auth.rank();
     return rank !== null && rank <= RANK.R5 && this.auth.isActive();
   });
-  readonly myAdminStateId = computed(() => this.account()?.stateId ?? null);
+  // state_admin/R5 are tied to their own account.stateId. Superadmin isn't tied to any
+  // state (their account has no stateId at all — that's why the button silently did
+  // nothing for a superadmin before this fix) but can administer any state per the
+  // stateScopedGuard bypass, so fall back to whichever state is currently picked here.
+  readonly myAdminStateId = computed(() => this.account()?.stateId ?? this.selectedStateId());
 
   readonly apps = APPS;
   readonly globalApps = APPS.filter((a) => !a.stateScoped);

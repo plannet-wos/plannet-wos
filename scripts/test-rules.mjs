@@ -212,6 +212,39 @@ await check("R5 of a DIFFERENT alliance cannot touch eagle's battle times", asyn
   await assertFails(updateDoc(doc(db, 'alliances/3038-eagle'), { finalTimeL1: '22:00' }));
 });
 
+// --- multiple accounts sharing a rank+scope (explicitly requested: shared roles) ---
+await check('superadmin can approve a SECOND state_admin for a state that already has one', async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/sa-3038-second'), {
+      uid: 'sa-3038-second', email: 'sa3038b@x.com', role: 'state_admin', rank: 1, stateId: '3038',
+      status: 'pending', mfaEnrolled: true, requestedAt: 1,
+    }));
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/sa-3038-second'), {
+    status: 'active', approvedBy: 'super1', approvedAt: Date.now(),
+  }));
+  // both state admins for 3038 stay independently active and equally able to act.
+  const db2 = testEnv.authenticatedContext('sa-3038-second').firestore();
+  await assertSucceeds(setDoc(doc(db2, 'alliances/3038-second-admin-check'), {
+    id: '3038-second-admin-check', stateId: '3038', slug: 'second-admin-check', name: 'Check', createdAt: 1,
+  }));
+});
+
+await check('a state_admin can approve a SECOND R5 for an alliance that already has one', async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r5-eagle-second'), {
+      uid: 'r5-eagle-second', email: 'r5eagle2@x.com', role: 'r5', rank: 2, stateId: '3038', allianceId: '3038-eagle',
+      status: 'pending', mfaEnrolled: true, requestedAt: 1,
+    }));
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r5-eagle-second'), {
+    status: 'active', approvedBy: 'sa-3038', approvedAt: Date.now(),
+  }));
+  // both R5s for eagle stay independently able to approve/revoke that alliance's R4s.
+  const db2 = testEnv.authenticatedContext('r5-eagle-second').firestore();
+  await assertSucceeds(updateDoc(doc(db2, 'accounts/r4-active-2'), { status: 'suspended' }));
+});
+
 await testEnv.cleanup();
 
 console.log(`\n${passed} passed`);
