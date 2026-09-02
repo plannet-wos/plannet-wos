@@ -197,14 +197,27 @@ await check("R5 can update their OWN alliance's battle-time fields", async () =>
   await assertSucceeds(updateDoc(doc(db, 'alliances/3038-eagle'), { finalTimeL1: '20:00', finalTimeL2: '21:00' }));
 });
 
-await check("R4 can update their OWN alliance's isCrossAlliance flag too — same carve-out, not just R5", async () => {
+await check("R4 can update their OWN alliance's finalTime field too — same carve-out, not just R5", async () => {
   const db = testEnv.authenticatedContext('r4-active').firestore();
-  await assertSucceeds(updateDoc(doc(db, 'alliances/3038-eagle'), { isCrossAlliance: true }));
+  await assertSucceeds(updateDoc(doc(db, 'alliances/3038-eagle'), { finalTime: '20:00' }));
 });
 
 await check('R5 cannot rename their alliance through the operational-fields carve-out', async () => {
   const db = testEnv.authenticatedContext('r5-eagle').firestore();
   await assertFails(updateDoc(doc(db, 'alliances/3038-eagle'), { name: 'Renamed' }));
+});
+
+await check("R5 cannot set the state-event `type` field through the operational-fields carve-out — only state_admin/superadmin mint those, at creation", async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(updateDoc(doc(db, 'alliances/3038-eagle'), { type: 'state_event' }));
+});
+
+await check('state_admin can create a state-event shell alliance in their own state', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(setDoc(doc(db, 'alliances/3038-s38'), {
+    id: '3038-s38', stateId: '3038', slug: 's38', name: 'S38 Foundry Event',
+    type: 'state_event', createdAt: Date.now(),
+  }));
 });
 
 await check("R5 of a DIFFERENT alliance cannot touch eagle's battle times", async () => {

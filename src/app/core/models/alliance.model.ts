@@ -1,6 +1,6 @@
 /**
  * Minimal shape of a shared `alliances/{stateId}-{slug}` document — the full model (with
- * foundry-planner-specific fields like finalTime/isCrossAlliance) lives in that repo; this
+ * foundry-planner-specific fields like finalTime/type) lives in that repo; this
  * repo only needs enough to list/create/delete alliances from the state-admin dashboard and
  * let signup requests pick one.
  */
