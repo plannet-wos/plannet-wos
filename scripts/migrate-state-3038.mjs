@@ -62,6 +62,13 @@ const ALLIANCE_SCOPED_COLLECTIONS = [
 ];
 const BATCH_LIMIT = 450; // Firestore's hard cap is 500 — leave headroom.
 
+// Rewrites the keys of a { [allianceId]: value } map. Keys with no match in idMap are left
+// as-is rather than dropped, so a reference to an alliance outside this migration's scope
+// doesn't silently vanish.
+function rewriteAllianceKeyedMap(map, idMap) {
+  return Object.fromEntries(Object.entries(map).map(([k, v]) => [idMap.get(k) ?? k, v]));
+}
+
 function parseArgs(argv) {
   return {
     emulator: argv.includes('--emulator'),
@@ -148,7 +155,21 @@ async function main() {
     for (let i = 0; i < toRewrite.length; i += BATCH_LIMIT) {
       const batch = writeBatch(db);
       for (const d of toRewrite.slice(i, i + BATCH_LIMIT)) {
-        batch.update(d.ref, { allianceId: idMap.get(d.data().allianceId) });
+        const data = d.data();
+        const update = { allianceId: idMap.get(data.allianceId) };
+        // players' legionByAlliance/tierByAlliance are { [allianceId]: value } maps (cross-
+        // alliance events — see player.model.ts) — their KEYS need the same rewrite as the
+        // top-level allianceId field, or cross-alliance legion/tier lookups silently break
+        // once the alliance they're keyed by no longer exists under its old bare ID.
+        if (collectionName === 'players') {
+          if (data.legionByAlliance) {
+            update.legionByAlliance = rewriteAllianceKeyedMap(data.legionByAlliance, idMap);
+          }
+          if (data.tierByAlliance) {
+            update.tierByAlliance = rewriteAllianceKeyedMap(data.tierByAlliance, idMap);
+          }
+        }
+        batch.update(d.ref, update);
       }
       await batch.commit();
     }

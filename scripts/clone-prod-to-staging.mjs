@@ -62,6 +62,15 @@ for (const d of allianceSnap.docs) {
 }
 console.log(`alliances: ${idMap.size} doc(s)${dryRun ? ' would be' : ''} cloned`);
 
+// Rewrites the keys of a { [allianceId]: value } map (players' legionByAlliance/
+// tierByAlliance, for cross-alliance events — see player.model.ts). Keys with no match in
+// idMap are left as-is rather than dropped, so a reference to an alliance outside this
+// clone's scope doesn't silently vanish.
+function rewriteAllianceKeyedMap(map) {
+  if (!map) return map;
+  return Object.fromEntries(Object.entries(map).map(([k, v]) => [idMap.get(k) ?? k, v]));
+}
+
 // --- allianceId-scoped collections: same doc ID, allianceId rewritten via idMap ---
 const ALLIANCE_SCOPED = ['players', 'tasks', 'assignments', 'wiki_articles', 'article_feedback', 'admin_feedback'];
 for (const name of ALLIANCE_SCOPED) {
@@ -76,7 +85,17 @@ for (const name of ALLIANCE_SCOPED) {
     }
     cloned++;
     if (dryRun) continue;
-    await dest.doc(`${name}/${d.id}`).set({ ...data, allianceId: newAllianceId });
+    const rewritten = { ...data, allianceId: newAllianceId };
+    // Only assign when the source doc actually had the field — most players don't (it's
+    // cross-alliance-events-only), and explicitly assigning `undefined` here (rather than
+    // just omitting the key) is a value Firestore's SDK rejects outright.
+    if (name === 'players' && data.legionByAlliance) {
+      rewritten.legionByAlliance = rewriteAllianceKeyedMap(data.legionByAlliance);
+    }
+    if (name === 'players' && data.tierByAlliance) {
+      rewritten.tierByAlliance = rewriteAllianceKeyedMap(data.tierByAlliance);
+    }
+    await dest.doc(`${name}/${d.id}`).set(rewritten);
   }
   console.log(`${name}: ${cloned} doc(s)${dryRun ? ' would be' : ''} cloned${skipped ? `, ${skipped} skipped (no matching alliance)` : ''}`);
 }

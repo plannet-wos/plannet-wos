@@ -45,7 +45,15 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
   });
   // Legacy (pre-rollout) data: bare alliance ID, no stateId.
   await setDoc(doc(db, 'alliances/eagle'), { id: 'eagle', name: 'Eagle', createdAt: 1 });
-  await setDoc(doc(db, 'players/p1'), { id: 'p1', allianceId: 'eagle', inGameName: 'Alice' });
+  await setDoc(doc(db, 'players/p1'), {
+    id: 'p1', allianceId: 'eagle', inGameName: 'Alice',
+    // Cross-alliance event fields (see player.model.ts) — keyed by alliance ID, not just
+    // referencing one in a plain field. 'eagle' should get rewritten same as allianceId
+    // above; 'ghost' (an alliance outside this migration's scope) should be left as-is
+    // rather than dropped.
+    legionByAlliance: { eagle: 1, ghost: 2 },
+    tierByAlliance: { eagle: 'whale' },
+  });
   await setDoc(doc(db, 'tasks/t1'), { id: 't1', allianceId: 'eagle', name: 'Cannon' });
   await setDoc(doc(db, 'assignments/a1'), { id: 'a1', allianceId: 'eagle', playerId: 'p1' });
   await setDoc(doc(db, 'wiki_articles/w1'), {
@@ -97,6 +105,10 @@ assert.equal(newAlliance.data().slug, 'eagle');
 
 const player = await getDoc(doc(db, 'players/p1'));
 assert.equal(player.data().allianceId, '3038-eagle', 'player.allianceId should be rewritten');
+assert.deepEqual(player.data().legionByAlliance, { '3038-eagle': 1, ghost: 2 },
+  'legionByAlliance keys should be rewritten, with the out-of-scope "ghost" key left as-is');
+assert.deepEqual(player.data().tierByAlliance, { '3038-eagle': 'whale' },
+  'tierByAlliance keys should be rewritten too');
 
 const task = await getDoc(doc(db, 'tasks/t1'));
 assert.equal(task.data().allianceId, '3038-eagle', 'task.allianceId should be rewritten');
