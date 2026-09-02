@@ -174,6 +174,23 @@ await check('state_admin cannot register a new state', async () => {
   await assertFails(setDoc(doc(db, 'states/4002'), { id: '4002', createdAt: Date.now() }));
 });
 
+// --- svs_forms: superadmin-only now that real auth exists to gate on ---
+await check('superadmin can create an svs_forms round for a state', async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertSucceeds(setDoc(doc(db, 'svs_forms/round1'), {
+    stateId: '3038', highestFcLevel: 8, battleDate: '2026-09-05',
+    submissionsOpenAt: 1, submissionsCloseAt: 2,
+  }));
+});
+
+await check('state_admin cannot create an svs_forms round (svs-prep is superadmin-only)', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(setDoc(doc(db, 'svs_forms/round2'), {
+    stateId: '3038', highestFcLevel: 8, battleDate: '2026-09-05',
+    submissionsOpenAt: 1, submissionsCloseAt: 2,
+  }));
+});
+
 // --- alliances: the narrow R4/R5 operational-fields carve-out (foundry-planner's admin-dashboard) ---
 await check("R5 can update their OWN alliance's battle-time fields", async () => {
   const db = testEnv.authenticatedContext('r5-eagle').firestore();
