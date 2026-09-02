@@ -60,7 +60,22 @@ export class AuthService {
   }
 
   async whenReady(): Promise<void> {
-    return this.settledPromise;
+    // A straight `return this.settledPromise` has a second failure mode, distinct from the
+    // hang: applyUser() resolves the *previous* gate as soon as a new auth transition starts
+    // (so nothing hangs — see its own doc comment), but that means a promise this function
+    // captured can resolve *before* the account doc has actually loaded, not just before the
+    // "true" settle. A guard awaiting that would see isActive()/rank() still reflecting the
+    // stale (usually null) account — on a fresh page load this is the common case, not a rare
+    // race, since a guard's first `await` always captures the constructor's initial gate.
+    // Looping fixes it: only return once the promise we just awaited is still the CURRENT
+    // gate — if a fresher one has since replaced it, that means we were woken early by a
+    // *newer* transition superseding ours, so go around and wait on that one instead.
+    let promise = this.settledPromise;
+    while (true) {
+      await promise;
+      if (promise === this.settledPromise) return;
+      promise = this.settledPromise;
+    }
   }
 
   /**
