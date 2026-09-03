@@ -6,7 +6,8 @@ rules_version = '2';
 //   • Alliance Wiki — same alliance-trust model (client-side admin password
 //     check, no Firebase Auth). Reads and writes are open on its collections.
 //   • SvS Preparation — same alliance-trust model. `svs_forms` holds one doc
-//     per round (superadmin-managed, see svs-prep's admin pages);
+//     per round (state_admin-or-above managed, scoped to their own state —
+//     see svs-prep's admin pages and the svs_forms rule below);
 //     `svs_submissions` holds one doc per (round, player ID) pair (the SvS
 //     prep survey, replacing the old Google Form); `svs_assignments` holds
 //     one doc per round with the live computed appointment schedule.
@@ -190,20 +191,25 @@ service cloud.firestore {
       allow delete: if true;
     }
 
-    // One doc per SvS prep round, created/edited from svs-prep's superadmin-only admin pages.
-    // Now backed by real auth (see the multi-state rollout plan) — no longer just a shape
-    // check, since a real backend-enforceable identity exists to gate on. Reads stay open so
-    // the public survey can find "the currently open round" for its state.
+    // One doc per SvS prep round, created/edited from svs-prep's admin pages — state_admin or
+    // above now (originally superadmin-only; widened per the state-event/SvS follow-up so a
+    // state's own admin doesn't have to go through superadmin for every round), scoped to
+    // their own state same as everywhere else in the hierarchy. Now backed by real auth (see
+    // the multi-state rollout plan) — no longer just a shape check, since a real
+    // backend-enforceable identity exists to gate on. Reads stay open so the public survey can
+    // find "the currently open round" for its state.
     match /svs_forms/{formId} {
       allow read: if true;
-      allow create, update: if isActiveAccount() && myRank() == 0
+      allow create, update: if isActiveAccount() && myRank() <= 1
+        && (myRank() == 0 || myAccount().stateId == request.resource.data.stateId)
         && request.resource.data.stateId is string
         && request.resource.data.highestFcLevel in [3, 5, 8, 10]
         && request.resource.data.battleDate is string
         && request.resource.data.submissionsOpenAt is number
         && request.resource.data.submissionsCloseAt is number
         && request.resource.data.submissionsCloseAt > request.resource.data.submissionsOpenAt;
-      allow delete: if isActiveAccount() && myRank() == 0;
+      allow delete: if isActiveAccount() && myRank() <= 1
+        && (myRank() == 0 || myAccount().stateId == resource.data.stateId);
     }
 
     // One doc per SvS prep round holding the live computed appointment schedule — see svs-prep's

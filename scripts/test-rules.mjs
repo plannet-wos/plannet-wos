@@ -16,7 +16,7 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 
 const rules = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8');
 
@@ -174,7 +174,7 @@ await check('state_admin cannot register a new state', async () => {
   await assertFails(setDoc(doc(db, 'states/4002'), { id: '4002', createdAt: Date.now() }));
 });
 
-// --- svs_forms: superadmin-only now that real auth exists to gate on ---
+// --- svs_forms: state_admin-or-above, scoped to their own state ---
 await check('superadmin can create an svs_forms round for a state', async () => {
   const db = testEnv.authenticatedContext('super1').firestore();
   await assertSucceeds(setDoc(doc(db, 'svs_forms/round1'), {
@@ -183,12 +183,33 @@ await check('superadmin can create an svs_forms round for a state', async () => 
   }));
 });
 
-await check('state_admin cannot create an svs_forms round (svs-prep is superadmin-only)', async () => {
+await check('state_admin can create an svs_forms round for their OWN state', async () => {
   const db = testEnv.authenticatedContext('sa-3038').firestore();
-  await assertFails(setDoc(doc(db, 'svs_forms/round2'), {
+  await assertSucceeds(setDoc(doc(db, 'svs_forms/round2'), {
     stateId: '3038', highestFcLevel: 8, battleDate: '2026-09-05',
     submissionsOpenAt: 1, submissionsCloseAt: 2,
   }));
+});
+
+await check('state_admin cannot create an svs_forms round for a DIFFERENT state', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(setDoc(doc(db, 'svs_forms/round3'), {
+    stateId: '9999', highestFcLevel: 8, battleDate: '2026-09-05',
+    submissionsOpenAt: 1, submissionsCloseAt: 2,
+  }));
+});
+
+await check('R5 cannot create an svs_forms round at all (below state_admin)', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(setDoc(doc(db, 'svs_forms/round4'), {
+    stateId: '3038', highestFcLevel: 8, battleDate: '2026-09-05',
+    submissionsOpenAt: 1, submissionsCloseAt: 2,
+  }));
+});
+
+await check('state_admin can delete an svs_forms round in their OWN state', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(deleteDoc(doc(db, 'svs_forms/round2')));
 });
 
 // --- alliances: the narrow R4/R5 operational-fields carve-out (foundry-planner's admin-dashboard) ---
