@@ -6,15 +6,26 @@
  *
  * What it does, per the plan's "Migration of existing data and accounts" section:
  *   1. Creates states/3038.
- *   2. For every alliances/{oldId} doc that doesn't already have a stateId (so this is safe
- *      to re-run if it's interrupted partway through): creates alliances/3038-{oldId} with
- *      stateId/slug added, deletes the old doc.
+ *   2. For every alliances/{oldId} doc that doesn't already have a stateId: creates
+ *      alliances/3038-{oldId} with stateId/slug added, deletes the old doc.
  *   3. Rewrites the `allianceId` field on every players/tasks/assignments/wiki_articles/
  *      article_feedback/admin_feedback doc that referenced an old bare alliance ID, to the
  *      new "3038-{oldId}" composite.
  *
+ * Resumable: the old->new id map step 3 uses is rebuilt from the CURRENT state of the
+ * alliances collection after step 2 (every alliance with stateId=='3038' contributes
+ * slug->id), not just from whatever step 2 did in this particular run. That means a second
+ * run after a crash midway through step 3 — or one that starts after step 2 already fully
+ * completed in a prior run — still finds every alliance to map against and finishes the
+ * rewrite, instead of seeing an empty map and silently doing nothing. Every write here is
+ * also naturally idempotent on its own (setDoc/batch.update with the same target values), so
+ * re-running this after any partial failure, at any point, converges to the same end state.
+ *
  * Requires a signed-in superadmin (alliances/states writes are superadmin/state_admin-only
- * per firestore.rules) — pass credentials via MIGRATION_EMAIL / MIGRATION_PASSWORD.
+ * per firestore.rules) — pass credentials via MIGRATION_EMAIL / MIGRATION_PASSWORD. If that
+ * account has TOTP enrolled (recommended, but not required for superadmin — see roles.ts),
+ * also set MIGRATION_OTP to a currently-valid 6-digit code from its authenticator app; the
+ * script will tell you if one was needed and wasn't provided, rather than failing opaquely.
  *
  * Usage:
  *   Against the emulator (safe, default):
@@ -22,12 +33,19 @@
  *       "MIGRATION_EMAIL=... MIGRATION_PASSWORD=... node scripts/migrate-state-3038.mjs --emulator"
  *
  *   Against production — ONLY at the scheduled cutover, per the rollout plan, never before:
- *     MIGRATION_EMAIL=... MIGRATION_PASSWORD=... node scripts/migrate-state-3038.mjs --project tal-coordinator --yes
+ *     MIGRATION_EMAIL=... MIGRATION_PASSWORD=... [MIGRATION_OTP=...] \
+ *       node scripts/migrate-state-3038.mjs --project tal-coordinator --yes
  *
  * --dry-run prints what it would do without writing anything.
  */
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, signInWithEmailAndPassword } from 'firebase/auth';
+import {
+  getAuth,
+  connectAuthEmulator,
+  signInWithEmailAndPassword,
+  getMultiFactorResolver,
+  TotpMultiFactorGenerator,
+} from 'firebase/auth';
 import {
   getFirestore,
   connectFirestoreEmulator,
@@ -101,7 +119,24 @@ async function main() {
     console.error('Set MIGRATION_EMAIL and MIGRATION_PASSWORD to a superadmin account.');
     process.exit(1);
   }
-  await signInWithEmailAndPassword(auth, email, password);
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (err) {
+    if (err?.code !== 'auth/multi-factor-auth-required') throw err;
+    const otp = process.env.MIGRATION_OTP;
+    if (!otp) {
+      console.error(
+        'This account has TOTP enrolled — set MIGRATION_OTP to a currently-valid 6-digit code ' +
+        'from its authenticator app and re-run.',
+      );
+      process.exit(1);
+    }
+    const resolver = getMultiFactorResolver(auth, err);
+    const hint = resolver.hints.find((h) => h.factorId === TotpMultiFactorGenerator.FACTOR_ID);
+    if (!hint) throw new Error('Account requires MFA but has no TOTP factor enrolled — unexpected, check its accounts/{uid} doc.');
+    const assertion = TotpMultiFactorGenerator.assertionForSignIn(hint.uid, otp);
+    await resolver.resolveSignIn(assertion);
+  }
 
   console.log(`Target: ${args.emulator ? 'EMULATOR' : args.project} ${args.dryRun ? '(dry run)' : ''}`);
 
@@ -115,13 +150,15 @@ async function main() {
 
   // 2. Migrate alliances that don't already have a stateId.
   const allianceSnap = await getDocs(collection(db, 'alliances'));
-  const idMap = new Map(); // oldId -> newId
   const legacyAlliances = allianceSnap.docs.filter((d) => !d.data().stateId);
+
+  if (legacyAlliances.length === 0) {
+    console.log('No legacy (non-state-scoped) alliances found — nothing to migrate there.');
+  }
 
   for (const d of legacyAlliances) {
     const oldId = d.id;
     const newId = `${STATE_ID}-${oldId}`;
-    idMap.set(oldId, newId);
     if (args.dryRun) {
       console.log(`Would migrate alliances/${oldId} -> alliances/${newId}`);
       continue;
@@ -136,9 +173,19 @@ async function main() {
     console.log(`alliances/${oldId} -> alliances/${newId}`);
   }
 
-  if (idMap.size === 0) {
-    console.log('No legacy (non-state-scoped) alliances found — nothing to migrate there.');
-  }
+  // Build the old->new id map for step 3 from the CURRENT state of the collection (a fresh
+  // read, post-migration), not from what step 2 did in just this run — every alliance with
+  // stateId=='3038' contributes slug->id, whether it was migrated just now or in an earlier,
+  // interrupted run. That's what makes step 3 resumable on its own: re-running after a crash
+  // partway through it (or a run that starts after step 2 already fully completed) still
+  // finds every alliance to map against.
+  const idMap = args.dryRun
+    ? new Map(legacyAlliances.map((d) => [d.id, `${STATE_ID}-${d.id}`]))
+    : new Map(
+        (await getDocs(collection(db, 'alliances'))).docs
+          .filter((d) => d.data().stateId === STATE_ID && d.data().slug)
+          .map((d) => [d.data().slug, d.id]),
+      );
 
   // 3. Rewrite allianceId on every scoped collection.
   for (const collectionName of ALLIANCE_SCOPED_COLLECTIONS) {

@@ -124,3 +124,22 @@ assert.equal(alreadyMigrated.exists(), true, 'already-migrated alliance should b
 assert.equal(alreadyMigrated.data().name, 'Wolf');
 
 console.log('\nALL MIGRATION ASSERTIONS PASSED');
+
+// --- resumability: a doc left on the OLD bare allianceId, added AFTER the alliance itself
+// was already migrated (simulating one step 3 missed the first time around — a crash
+// mid-batch, or a doc that showed up between runs) — a second full invocation of the script,
+// where `alliances/eagle` no longer exists to seed a fresh idMap from, must still find and
+// rewrite it. This is exactly the case the old (non-resumable) idMap construction silently
+// did nothing for. ---
+console.log('\n--- resumability: second run must catch a straggler doc ---');
+await setDoc(doc(db, 'players/p2'), { id: 'p2', allianceId: 'eagle', inGameName: 'Bob' });
+
+execFileSync('node', ['scripts/migrate-state-3038.mjs', '--emulator', '--project', 'demo-tal-coordinator'], {
+  env: { ...process.env, MIGRATION_EMAIL: EMAIL, MIGRATION_PASSWORD: PASSWORD },
+  stdio: 'inherit',
+});
+
+const straggler = await getDoc(doc(db, 'players/p2'));
+assert.equal(straggler.data().allianceId, '3038-eagle', 'a doc added between runs should still get rewritten by a second invocation');
+
+console.log('\nRESUMABILITY ASSERTION PASSED');
