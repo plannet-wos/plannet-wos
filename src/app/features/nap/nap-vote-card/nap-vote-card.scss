@@ -1,0 +1,75 @@
+.vote-card {
+  &.closed {
+    opacity: 0.92;
+  }
+}
+
+.question {
+  white-space: pre-wrap;
+  font-size: 1.15rem;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+}
+
+mat-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  border-radius: 6px;
+
+  &.leading {
+    background: rgba(46, 125, 50, 0.08);
+  }
+}
+
+.tally {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 120px;
+  position: relative;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bar {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  background: rgba(21, 101, 192, 0.35);
+  transition: width 0.3s ease;
+}
+
+.count {
+  position: relative;
+  margin-left: auto;
+  padding-right: 8px;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tally-summary {
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 0.85rem;
+  margin: 4px 0 12px;
+}
+
+.hint {
+  color: rgba(0, 0, 0, 0.6);
+  font-style: italic;
+}

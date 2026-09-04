@@ -62,6 +62,13 @@ service cloud.firestore {
         || (myRank() == 2 && myAccount().allianceId == target.allianceId);
     }
 
+    // Used by the nap_votes/nap_ballots rules below — a ballot doc only carries `voteId`, not
+    // the parent vote's own fields (deadline, optionIds, choiceMode, voteScope, stateId), so
+    // those rules need to fetch it to validate a cast/changed ballot against them.
+    function napVote(voteId) {
+      return get(/databases/$(database)/documents/nap_votes/$(voteId)).data;
+    }
+
     // --- states (registry of game servers — see the multi-state rollout plan) --
     // Read is open so the state picker can list them; creating a new state (onboarding a
     // game server) and any other write is superadmin-only.
@@ -185,6 +192,88 @@ service cloud.firestore {
       );
 
       allow delete: if isActiveAccount() && myRank() == 0;
+    }
+
+    // --- NAP (the state-admins' voting council) -----------------------
+    // R5 and up create votes; who may CAST a ballot is the vote's own `voteScope`, checked
+    // against the voter's OWN account doc — same denormalized-scope pattern as `sameScope()`
+    // above. A vote is "active" while `deadline` is still in the future; there's no separate
+    // status field to keep in sync — a ballot write just stops being acceptable once
+    // request.time passes it, and every screen reads active-vs-archived off that same
+    // comparison. hide/delete of a vote is state_admin+ only, even for a vote an R5 created
+    // themselves — see the plan this was built against for why that split.
+    match /nap_votes/{voteId} {
+      // Fully public read — the question, options and settings aren't sensitive, and the
+      // whole point of the archive is that "the decisions the NAP made" are visible to
+      // anyone once a vote closes; keeping reads open before that too (rather than switching
+      // on deadline) avoids a second read-path just for the window a vote is still running.
+      allow read: if true;
+
+      allow create: if isActiveAccount() && myRank() <= 2
+        && (myRank() == 0 || myAccount().stateId == request.resource.data.stateId)
+        && request.resource.data.keys().hasOnly(
+             ['stateId', 'question', 'options', 'optionIds', 'choiceMode', 'voteScope', 'deadline',
+              'createdBy', 'createdByEmail', 'createdAt', 'hidden'])
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdByEmail is string
+        && request.resource.data.createdAt is number
+        && request.resource.data.hidden == false
+        && request.resource.data.question is string
+        && request.resource.data.question.size() > 0 && request.resource.data.question.size() <= 500
+        && request.resource.data.choiceMode in ['single', 'multiple']
+        && request.resource.data.voteScope in ['r5_only', 'alliance']
+        && request.resource.data.options is list
+        && request.resource.data.options.size() >= 2 && request.resource.data.options.size() <= 20
+        && request.resource.data.optionIds is list
+        && request.resource.data.optionIds.size() == request.resource.data.options.size()
+        && request.resource.data.deadline is number
+        && request.resource.data.deadline > request.time.toMillis();
+
+      // The only update a vote doc ever takes after creation: state_admin+ (own state;
+      // superadmin anywhere) toggling `hidden`. Question, options, deadline and scope are
+      // never editable by anyone, including the vote's own creator — a wrong vote gets
+      // deleted and recreated, not silently rewritten mid-flight.
+      allow update: if isActiveAccount() && myRank() <= 1
+        && (myRank() == 0 || myAccount().stateId == resource.data.stateId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hidden']);
+
+      allow delete: if isActiveAccount() && myRank() <= 1
+        && (myRank() == 0 || myAccount().stateId == resource.data.stateId);
+    }
+
+    // One ballot per (vote, voter) — doc ID `${voteId}_${uid}`, same composite-id shape
+    // svs_submissions uses below for its one-per-round-per-player rows. Reads stay open for
+    // the same transparency reason as the vote doc, and so results can be tallied
+    // client-side with no backend. Casting/changing a ballot requires: it's really you, the
+    // vote hasn't hit its deadline, your selections are a real subset of that vote's options
+    // and match its single/multiple setting, and your denormalized rank/allianceId/email
+    // match your OWN account doc right now (so you can't vote as a rank or alliance that
+    // isn't actually yours) — plus, per voteScope: 'r5_only' requires you actually ARE an R5;
+    // 'alliance' just requires you belong to an alliance in this vote's state (R4, R5, or a
+    // state_admin/superadmin self-tagged as also leading one — see accounts' self-tag clause
+    // above). Ballots are never deleted by their own voter — only state_admin+, as part of
+    // deleting the whole vote (see NapService.remove()).
+    match /nap_ballots/{ballotId} {
+      allow read: if true;
+
+      allow create, update: if isActiveAccount()
+        && ballotId == (request.resource.data.voteId + '_' + request.resource.data.uid)
+        && request.auth.uid == request.resource.data.uid
+        && request.resource.data.keys().hasOnly(['voteId', 'uid', 'email', 'rank', 'allianceId', 'selections', 'votedAt'])
+        && request.resource.data.email == myAccount().email
+        && request.resource.data.rank == myRank()
+        && request.resource.data.allianceId is string
+        && request.resource.data.allianceId == myAccount().get('allianceId', null)
+        && request.resource.data.selections is list
+        && request.resource.data.selections.size() >= 1
+        && request.resource.data.selections.hasOnly(napVote(request.resource.data.voteId).optionIds)
+        && (napVote(request.resource.data.voteId).choiceMode == 'multiple' || request.resource.data.selections.size() == 1)
+        && napVote(request.resource.data.voteId).deadline > request.time.toMillis()
+        && myAccount().stateId == napVote(request.resource.data.voteId).stateId
+        && (napVote(request.resource.data.voteId).voteScope != 'r5_only' || myRank() == 2);
+
+      allow delete: if isActiveAccount() && myRank() <= 1
+        && (myRank() == 0 || myAccount().stateId == napVote(resource.data.voteId).stateId);
     }
 
     // --- Alliance Wiki ------------------------------------------------

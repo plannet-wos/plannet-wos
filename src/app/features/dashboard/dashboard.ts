@@ -98,7 +98,14 @@ export class DashboardComponent {
     const rank = this.auth.rank();
     return rank !== null && rank <= RANK.R5 && this.auth.isActive();
   });
-  // state_admin/R5 are tied to their own account.stateId. Superadmin isn't tied to any
+  // R4, R5 and state_admin — everyone the NAP voting council is for (see ':stateId/nap's
+  // stateScopedGuard(RANK.R4)). Superadmin can also reach it (the guard bypasses for them
+  // too) but doesn't get its own button here, same as it has no dedicated tile elsewhere.
+  readonly canUseNap = computed(() => {
+    const rank = this.auth.rank();
+    return rank !== null && rank <= RANK.R4 && this.auth.isActive();
+  });
+  // state_admin/R5/R4 are tied to their own account.stateId. Superadmin isn't tied to any
   // state (their account has no stateId at all — that's why the button silently did
   // nothing for a superadmin before this fix) but can administer any state per the
   // stateScopedGuard bypass, so fall back to whichever state is currently picked here.
@@ -139,6 +146,11 @@ export class DashboardComponent {
   goToStateAdmin(): void {
     const stateId = this.myAdminStateId();
     if (stateId) this.router.navigate([stateId, 'admin']);
+  }
+
+  goToNap(): void {
+    const stateId = this.myAdminStateId();
+    if (stateId) this.router.navigate([stateId, 'nap']);
   }
 
   goToLogin(): void {

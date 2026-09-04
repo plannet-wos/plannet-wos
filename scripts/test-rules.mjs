@@ -440,6 +440,181 @@ await check('a state_admin can approve a SECOND R5 for an alliance that already 
   await assertSucceeds(updateDoc(doc(db2, 'accounts/r4-active-2'), { status: 'suspended' }));
 });
 
+// --- nap_votes: R5-and-up create, scoped to their own state ---
+await check('R5 creates a vote for their OWN state', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertSucceeds(setDoc(doc(db, 'nap_votes/vote-open'), {
+    stateId: '3038', question: 'Attack Bear alliance? ⚔️', options: [{ id: 'a', text: 'Yes 👍' }, { id: 'b', text: 'No 👎' }],
+    optionIds: ['a', 'b'], choiceMode: 'single', voteScope: 'alliance', deadline: Date.now() + 3600_000,
+    createdBy: 'r5-eagle', createdByEmail: 'r5eagle@x.com', createdAt: Date.now(), hidden: false,
+  }));
+});
+
+await check('R4 cannot create a vote (below R5)', async () => {
+  const db = testEnv.authenticatedContext('r4-active').firestore();
+  await assertFails(setDoc(doc(db, 'nap_votes/vote-r4-attempt'), {
+    stateId: '3038', question: 'Sneaky?', options: [{ id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }],
+    optionIds: ['a', 'b'], choiceMode: 'single', voteScope: 'alliance', deadline: Date.now() + 3600_000,
+    createdBy: 'r4-active', createdByEmail: 'r4active@x.com', createdAt: Date.now(), hidden: false,
+  }));
+});
+
+await check('state_admin cannot create a vote for a DIFFERENT state', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(setDoc(doc(db, 'nap_votes/vote-wrong-state'), {
+    stateId: '9999', question: 'Cross-state?', options: [{ id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }],
+    optionIds: ['a', 'b'], choiceMode: 'single', voteScope: 'r5_only', deadline: Date.now() + 3600_000,
+    createdBy: 'sa-3038', createdByEmail: 'sa3038@x.com', createdAt: Date.now(), hidden: false,
+  }));
+});
+
+await check('a vote needs at least 2 options and a future deadline', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(setDoc(doc(db, 'nap_votes/vote-one-option'), {
+    stateId: '3038', question: 'Only one?', options: [{ id: 'a', text: 'Yes' }],
+    optionIds: ['a'], choiceMode: 'single', voteScope: 'alliance', deadline: Date.now() + 3600_000,
+    createdBy: 'r5-eagle', createdByEmail: 'r5eagle@x.com', createdAt: Date.now(), hidden: false,
+  }));
+  await assertFails(setDoc(doc(db, 'nap_votes/vote-past-deadline'), {
+    stateId: '3038', question: 'Already closed?', options: [{ id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }],
+    optionIds: ['a', 'b'], choiceMode: 'single', voteScope: 'alliance', deadline: Date.now() - 1000,
+    createdBy: 'r5-eagle', createdByEmail: 'r5eagle@x.com', createdAt: Date.now(), hidden: false,
+  }));
+});
+
+// --- nap_ballots: casting, eligibility, deadline ---
+await check("alliance-vote ballot: R4 CAN vote (voteScope 'alliance'), denormalized fields must match their own account", async () => {
+  const db = testEnv.authenticatedContext('r4-active').firestore();
+  await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_r4-active'), {
+    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', rank: 3, allianceId: '3038-eagle',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check("R4 cannot claim someone else's allianceId on their ballot", async () => {
+  const db = testEnv.authenticatedContext('r4-active').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r4-active-spoof'), {
+    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', rank: 3, allianceId: '3038-wolf',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check('a ballot cannot select an option that is not one of the vote\'s optionIds', async () => {
+  const db = testEnv.authenticatedContext('r5-wolf').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r5-wolf'), {
+    voteId: 'vote-open', uid: 'r5-wolf', email: 'r5wolf@x.com', rank: 2, allianceId: '3038-wolf',
+    selections: ['not-a-real-option'], votedAt: Date.now(),
+  }));
+});
+
+await check('a single-choice ballot cannot select more than one option', async () => {
+  const db = testEnv.authenticatedContext('r5-wolf').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r5-wolf'), {
+    voteId: 'vote-open', uid: 'r5-wolf', email: 'r5wolf@x.com', rank: 2, allianceId: '3038-wolf',
+    selections: ['a', 'b'], votedAt: Date.now(),
+  }));
+});
+
+await check('a voter can change their mind before the deadline — re-casting overwrites their ballot', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_r5-eagle'), {
+    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', rank: 2, allianceId: '3038-eagle',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+  await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_r5-eagle'), {
+    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', rank: 2, allianceId: '3038-eagle',
+    selections: ['b'], votedAt: Date.now(),
+  }));
+});
+
+await check('a voter cannot cast a ballot in someone else\'s name', async () => {
+  const db = testEnv.authenticatedContext('r5-wolf').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r5-eagle'), {
+    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', rank: 2, allianceId: '3038-eagle',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check("'r5_only' vote rejects an R4 ballot even though they belong to an alliance in-state", async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'nap_votes/vote-r5-only'), {
+      stateId: '3038', question: 'R5 council only', options: [{ id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }],
+      optionIds: ['a', 'b'], choiceMode: 'single', voteScope: 'r5_only', deadline: Date.now() + 3600_000,
+      createdBy: 'sa-3038', createdByEmail: 'sa3038@x.com', createdAt: Date.now(), hidden: false,
+    }));
+  const db = testEnv.authenticatedContext('r4-active').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-r5-only_r4-active'), {
+    voteId: 'vote-r5-only', uid: 'r4-active', email: 'r4active@x.com', rank: 3, allianceId: '3038-eagle',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check("'r5_only' vote accepts an R5 ballot", async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-r5-only_r5-eagle'), {
+    voteId: 'vote-r5-only', uid: 'r5-eagle', email: 'r5eagle@x.com', rank: 2, allianceId: '3038-eagle',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check('a state_admin with no allianceId cannot vote on an alliance-scope vote', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_sa-3038'), {
+    voteId: 'vote-open', uid: 'sa-3038', email: 'sa3038@x.com', rank: 1, allianceId: '',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check('votes stop accepting ballots once the deadline has passed', async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'nap_votes/vote-closed'), {
+      stateId: '3038', question: 'Already over', options: [{ id: 'a', text: 'Yes' }, { id: 'b', text: 'No' }],
+      optionIds: ['a', 'b'], choiceMode: 'single', voteScope: 'alliance', deadline: Date.now() - 1000,
+      createdBy: 'r5-eagle', createdByEmail: 'r5eagle@x.com', createdAt: Date.now() - 5000, hidden: false,
+    }));
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-closed_r5-eagle'), {
+    voteId: 'vote-closed', uid: 'r5-eagle', email: 'r5eagle@x.com', rank: 2, allianceId: '3038-eagle',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+// --- nap_votes: hide/delete is state_admin+ only, never the R5 creator ---
+await check('the R5 who created a vote cannot hide or delete it themselves', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(updateDoc(doc(db, 'nap_votes/vote-open'), { hidden: true }));
+  await assertFails(deleteDoc(doc(db, 'nap_votes/vote-open')));
+});
+
+await check('state_admin hides and unhides a vote in their own state', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'nap_votes/vote-open'), { hidden: true }));
+  await assertSucceeds(updateDoc(doc(db, 'nap_votes/vote-open'), { hidden: false }));
+});
+
+await check('state_admin cannot piggyback other field changes onto the hidden toggle', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(updateDoc(doc(db, 'nap_votes/vote-open'), { hidden: true, question: 'Rewritten' }));
+});
+
+await check('a DIFFERENT state\'s state_admin cannot hide or delete this vote', async () => {
+  const db = testEnv.authenticatedContext('sa-9999').firestore();
+  await assertFails(updateDoc(doc(db, 'nap_votes/vote-open'), { hidden: true }));
+  await assertFails(deleteDoc(doc(db, 'nap_votes/vote-open')));
+});
+
+await check('state_admin deletes a vote and its ballots (cascade)', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(deleteDoc(doc(db, 'nap_ballots/vote-open_r5-eagle')));
+  await assertSucceeds(deleteDoc(doc(db, 'nap_ballots/vote-open_r4-active')));
+  await assertSucceeds(deleteDoc(doc(db, 'nap_votes/vote-open')));
+});
+
+await check('superadmin deletes a vote in any state', async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertSucceeds(deleteDoc(doc(db, 'nap_votes/vote-r5-only')));
+});
+
 await testEnv.cleanup();
 
 console.log(`\n${passed} passed`);
