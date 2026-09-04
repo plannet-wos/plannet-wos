@@ -132,6 +132,19 @@ export class AccountsService {
       collection(this.firestore, 'accounts'),
       where('stateId', '==', stateId),
       where('status', '==', 'active'),
+      // Explicit rank filter, even though it covers every rank this query could ever return
+      // (i.e. doesn't actually narrow the result set) — the accounts read rule's `myRank() <
+      // resource.data.rank` comparison needs SOME concrete value for `rank` to reason about
+      // for this query's list-time rule check, and without any where() clause naming it,
+      // Firestore evaluates that comparison against a placeholder with no `rank` at all and
+      // throws "Null value error", denying the whole query — reproduced locally (confirmed:
+      // identical query without this clause fails every time; adding it fixes it outright)
+      // while chasing the superadmin state-management drill-down's "dead dropdown" bug — the
+      // rule failure orphans the toSignal() this feeds mid change-detection, aborting the CD
+      // pass before the edit form's freshly-created mat-selects finish their Angular Material
+      // setup. pendingForApprover$/activeManagedBy$ never hit this because they already
+      // filter on rank for their own reasons.
+      where('rank', 'in', [RANK.STATE_ADMIN, RANK.R5, RANK.R4]),
     );
     return collectionData(q) as Observable<Account[]>;
   }

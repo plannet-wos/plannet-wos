@@ -16,7 +16,7 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, getDocs } from 'firebase/firestore';
 
 const rules = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8');
 
@@ -223,6 +223,37 @@ await check("superadmin reassigns an active state_admin to also lead an alliance
   await assertSucceeds(updateDoc(doc(db, 'accounts/sa-9999'), {
     role: 'state_admin', rank: 1, allianceId: '9999-hq',
   }));
+});
+
+// --- accounts: activeForState$'s list query (superadmin's state-management drill-down) ---
+// A `list` query's rule check needs a concrete value for every field the rule compares
+// against — `resource.data.rank` here — for EVERY document that could possibly match. A
+// query with no `where()` clause on `rank` at all leaves the rules engine unable to bind a
+// value for it and throws "Null value error" on `myRank() < resource.data.rank`, denying
+// the whole query outright (confirmed against the real emulator — this exact shape reliably
+// fails). That failure was the actual cause of the "dead dropdown" bug reported live: the
+// errored Observable feeding AccountsService.activeForState$() aborts the toSignal() it
+// backs, which throws on every later read of that signal from the drill-down table's still-
+// mounted template bindings — corrupting the SAME change-detection pass that's also standing
+// up the edit form's freshly-created mat-selects. See activeForState$()'s doc comment.
+await check("superadmin's activeForState$ query WITHOUT a rank filter is denied outright (this is the shape that broke the state cockpit's drill-down)", async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertFails(getDocs(query(
+    collection(db, 'accounts'),
+    where('stateId', '==', '3038'),
+    where('status', '==', 'active'),
+  )));
+});
+
+await check('superadmin lists every active account in a state (state, r5, r4) once the query names a concrete rank range — the actual activeForState$ shape', async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  const snap = await assertSucceeds(getDocs(query(
+    collection(db, 'accounts'),
+    where('stateId', '==', '3038'),
+    where('status', '==', 'active'),
+    where('rank', 'in', [1, 2, 3]),
+  )));
+  assert.ok(snap.docs.length > 0, 'expected at least one active 3038 account back');
 });
 
 // --- accounts: self-service email sync (profile.ts, after verifyBeforeUpdateEmail) ---
