@@ -49,12 +49,11 @@ export class StateAdminComponent {
   readonly stateId = inject(ActivatedRoute).snapshot.paramMap.get('stateId')!;
   readonly account = this.auth.account;
   readonly isStateAdminOrAbove = computed(() => (this.account()?.rank ?? 99) <= RANK.STATE_ADMIN);
-  // Shows the R4 queue below: true for a real R5, and also for a state_admin who personally
-  // leads an alliance too (allianceId set on their own account — see account.model.ts's
-  // comment). Rank-agnostic on purpose — the pendingR4/activeR4 queries below already key
-  // off allianceId alone, and this route only ever admits rank <= R5 in the first place
-  // (see app.routes.ts's stateScopedGuard), so nothing but superadmin (no allianceId) and
-  // R4 (never reaches this route) would otherwise fail the check anyway.
+  // True for a real R5 (always has an allianceId), or a state_admin who personally leads an
+  // alliance too (see account.model.ts's comment). Used in the template to decide whether
+  // the R4 queue section renders at all: state_admin/superadmin always see it (state-wide,
+  // via isStateAdminOrAbove() — see pendingR4/activeR4 below and firestore.rules'
+  // sameScope()); a real R5 sees it only because of this flag, for their own alliance.
   readonly leadsAlliance = computed(() => !!this.account()?.allianceId);
 
   // --- state_admin view: alliances + R5 queue ---
@@ -68,25 +67,32 @@ export class StateAdminComponent {
     { initialValue: [] as Account[] },
   );
 
-  // --- R4 queue for the signed-in account's own alliance (R5, or a state_admin who also
-  // leads that alliance — see leadsAlliance() above). account() loads asynchronously (it's
-  // an onSnapshot listener on accounts/{uid}), so this re-derives the query via switchMap
-  // whenever it changes rather than reading allianceId once at construction time. ---
+  // --- R4 queue: state-wide (every alliance in this state) for state_admin/superadmin — see
+  // firestore.rules' sameScope() — since they can now approve/revoke any alliance's R4s, not
+  // just one they personally lead; a state-wide escalation path for when an R5 is slow to
+  // clear their own queue. A real R5 still only ever sees/manages their OWN alliance's R4s.
+  // account() loads asynchronously (it's an onSnapshot listener on accounts/{uid}), so this
+  // re-derives the query via switchMap whenever it changes rather than reading rank/
+  // allianceId once at construction time. ---
   private readonly account$ = toObservable(this.account);
 
   readonly pendingR4 = toSignal(
     this.account$.pipe(
-      switchMap((acc) =>
-        acc?.allianceId ? this.accounts.pendingForApprover$({ rank: RANK.R5, allianceId: acc.allianceId }) : of([]),
-      ),
+      switchMap((acc) => {
+        if (!acc) return of([]);
+        if (acc.rank <= RANK.STATE_ADMIN) return this.accounts.pendingR4ForState$(this.stateId);
+        return acc.allianceId ? this.accounts.pendingForApprover$({ rank: RANK.R5, allianceId: acc.allianceId }) : of([]);
+      }),
     ),
     { initialValue: [] as Account[] },
   );
   readonly activeR4 = toSignal(
     this.account$.pipe(
-      switchMap((acc) =>
-        acc?.allianceId ? this.accounts.activeManagedBy$({ rank: RANK.R5, allianceId: acc.allianceId }) : of([]),
-      ),
+      switchMap((acc) => {
+        if (!acc) return of([]);
+        if (acc.rank <= RANK.STATE_ADMIN) return this.accounts.activeR4ForState$(this.stateId);
+        return acc.allianceId ? this.accounts.activeManagedBy$({ rank: RANK.R5, allianceId: acc.allianceId }) : of([]);
+      }),
     ),
     { initialValue: [] as Account[] },
   );
@@ -100,11 +106,11 @@ export class StateAdminComponent {
   newAllianceName = '';
 
   // --- editing an active R5's alliance/rank — see AccountsService.updateRole()'s doc
-  // comment. Reassigning to a different alliance (staying R5) is always available; demoting
-  // to R4 is only offered when this state_admin themselves leads an alliance
-  // (leadsAlliance()) — rules require the state_admin's OWN allianceId to match the target's
-  // new allianceId for an R4 target, so R4 is only ever a valid destination pointing at that
-  // one alliance. ---
+  // comment. This form only ever renders inside the isStateAdminOrAbove() section of the
+  // template, so both branches below are state-wide by construction: a state_admin (or
+  // superadmin) can reassign an R5 to any alliance in the state, and demoting to R4 is
+  // likewise valid for any alliance — see firestore.rules' sameScope(), which no longer
+  // restricts a state_admin's R4 scope to just their own alliance. ---
   editingR5Uid = signal<string | null>(null);
   editR5Rank: Rank = RANK.R5;
   editR5AllianceSlug = '';
@@ -119,16 +125,14 @@ export class StateAdminComponent {
     this.editingR5Uid.set(null);
   }
 
-  // Plain methods, not computed() — see signup.ts's needsAlliance doc comment for why: these
-  // read editR5Rank, a plain (non-signal) ngModel-bound field.
+  // Plain method, not computed() — see signup.ts's needsAlliance doc comment for why: this
+  // reads editR5Rank, a plain (non-signal) ngModel-bound field. Both ranks are always
+  // offered now — see this section's doc comment above.
   editR5Ranks(): Rank[] {
-    return this.leadsAlliance() ? [RANK.R5, RANK.R4] : [RANK.R5];
+    return [RANK.R5, RANK.R4];
   }
 
   editR5AllianceOptions(): Alliance[] {
-    if (this.editR5Rank === RANK.R4) {
-      return this.alliances().filter((a) => a.id === this.account()?.allianceId);
-    }
     return this.alliances();
   }
 

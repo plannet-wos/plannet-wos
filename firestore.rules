@@ -48,25 +48,17 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/accounts/$(request.auth.uid))
         && myAccount().status == 'active';
     }
-    // superadmin (rank 0): any scope. state_admin (1) acting on an r5 (target.rank==2): same
-    // stateId, state-wide — approving/revoking alliance leaders anywhere in the state is a
-    // core state_admin duty, unrelated to which alliance (if any) they personally lead.
-    // state_admin acting on an r4 (target.rank==3): only same allianceId, NOT just same
-    // state — this is the "most state admins are also their alliance's R5" case (see
-    // account.model.ts's allianceId comment); it grants R4 administration for that one
-    // alliance only, same as a real R5 would have, never for any other alliance in the
-    // state even though state_admin could otherwise reach it via the R5-target case above.
-    // r5 (2): same allianceId. r4 (3) can never satisfy this — nothing has rank > 3 for it
-    // to act on.
+    // superadmin (rank 0): any scope. state_admin (1) acting on an r5 (target.rank==2) OR an
+    // r4 (target.rank==3): same stateId, state-wide for both — approving/revoking alliance
+    // leaders AND their R4s anywhere in the state is a core state_admin duty, unrelated to
+    // which alliance (if any) they personally lead. R5s are sometimes slow (or unavailable)
+    // to approve their own R4 queue, so a state_admin is the state-wide escalation path for
+    // that too, not just for R5 itself. r5 (2): same allianceId — an R5 only ever manages
+    // their OWN alliance's R4s, never state-wide. r4 (3) can never satisfy this — nothing has
+    // rank > 3 for it to act on.
     function sameScope(target) {
       return myRank() == 0
-        || (myRank() == 1 && target.rank == 2 && myAccount().stateId == target.stateId)
-        // Also requires stateId match, not just allianceId — belt-and-suspenders once
-        // allianceId became a self-editable "also leads" tag (see the accounts update rule
-        // below): a state_admin's own allianceId field alone should never be enough to reach
-        // into a DIFFERENT state's alliance, even if that field were ever wrong/stale.
-        || (myRank() == 1 && target.rank == 3 && myAccount().allianceId == target.allianceId
-              && myAccount().stateId == target.stateId)
+        || (myRank() == 1 && target.rank in [2, 3] && myAccount().stateId == target.stateId)
         || (myRank() == 2 && myAccount().allianceId == target.allianceId);
     }
 

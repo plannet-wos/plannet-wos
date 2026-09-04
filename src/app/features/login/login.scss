@@ -47,6 +47,22 @@
   font-size: 14px;
 }
 
+.forgot-link {
+  background: none;
+  border: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.8;
+  cursor: pointer;
+  padding: 0;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .mfa-hint {
   font-size: 14px;
   opacity: 0.8;

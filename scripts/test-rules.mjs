@@ -155,14 +155,27 @@ await check("state_admin who also leads an alliance approves an R4 pending reque
   }));
 });
 
-await check("the same state_admin cannot manage an R4 in a DIFFERENT alliance, even though it's in their state", async () => {
+await check("the same state_admin CAN also manage an R4 in a DIFFERENT alliance in their state — R4 administration is state-wide now, not limited to the one alliance they personally lead", async () => {
   const db = testEnv.authenticatedContext('sa-falcon-leader').firestore();
-  await assertFails(updateDoc(doc(db, 'accounts/r4-active'), { status: 'suspended' }));
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r4-active'), { status: 'suspended' }));
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r4-active'), { status: 'active' }, { merge: true }));
 });
 
-await check("a PLAIN state_admin (no allianceId) cannot manage an R4 anywhere in their state — R4 administration requires personally leading that alliance", async () => {
+await check("a PLAIN state_admin (no allianceId) CAN manage an R4 anywhere in their state — approving/revoking any alliance's R4s is a state-wide escalation path, unrelated to personally leading that alliance", async () => {
   const db = testEnv.authenticatedContext('sa-3038').firestore();
-  await assertFails(updateDoc(doc(db, 'accounts/r4-falcon-active'), { status: 'suspended' }));
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r4-falcon-active'), { status: 'suspended' }));
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r4-falcon-active'), { status: 'active' }, { merge: true }));
+});
+
+await check('a PLAIN state_admin (no allianceId) approves a pending R4 request in an alliance they do NOT lead', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r4-falcon-pending'), {
+    status: 'active', approvedBy: 'sa-3038', approvedAt: Date.now(),
+  }));
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r4-falcon-pending'), { status: 'pending', approvedBy: deleteField(), approvedAt: deleteField() }, { merge: true }));
 });
 
 await check("state_admin who also leads an alliance still approves R5 requests state-wide, unaffected — R5 administration was never alliance-restricted", async () => {
@@ -183,11 +196,14 @@ await check('state_admin reassigns an active R5 to a DIFFERENT alliance in their
     setDoc(doc(ctx.firestore(), 'accounts/r5-wolf'), { allianceId: '3038-wolf' }, { merge: true }));
 });
 
-await check("state_admin cannot demote an R5 to R4 of an alliance they DON'T themselves lead", async () => {
+await check("state_admin CAN demote an R5 to R4 of an alliance they DON'T themselves lead — state-wide R4 scope again", async () => {
   const db = testEnv.authenticatedContext('sa-3038').firestore();
-  await assertFails(updateDoc(doc(db, 'accounts/r5-wolf'), {
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r5-wolf'), {
     role: 'r4', rank: 3, allianceId: '3038-wolf',
   }));
+  // restore for later tests expecting r5-wolf still an R5
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r5-wolf'), { role: 'r5', rank: 2, allianceId: '3038-wolf' }, { merge: true }));
 });
 
 await check('state_admin demotes an R5 to R4 of the ONE alliance they themselves lead', async () => {

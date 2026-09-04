@@ -8,7 +8,34 @@
     </mat-card-header>
 
     <mat-card-content>
-      @if (!pendingMfaResolver()) {
+      @if (showForgotPassword()) {
+        @if (!resetSent()) {
+          <form (ngSubmit)="sendPasswordReset()" class="login-form">
+            <p class="mfa-hint">Enter your email and we'll send you a link to reset your password.</p>
+            <mat-form-field appearance="outline">
+              <mat-label>Email</mat-label>
+              <input matInput [(ngModel)]="resetEmail" name="resetEmail" type="email" autocomplete="username" />
+              <mat-icon matPrefix>person</mat-icon>
+            </mat-form-field>
+
+            @if (error()) {
+              <p class="error">{{ error() }}</p>
+            }
+
+            <button mat-flat-button color="primary" type="submit" [disabled]="loading() || !resetEmail">
+              @if (loading()) {
+                <mat-spinner diameter="20"></mat-spinner>
+              } @else {
+                Send reset link
+              }
+            </button>
+            <button mat-button type="button" (click)="cancelForgotPassword()">Back</button>
+          </form>
+        } @else {
+          <p class="mfa-hint">If an account exists for <strong>{{ resetEmail }}</strong>, a reset link is on its way — check your inbox (and spam folder).</p>
+          <button mat-button type="button" (click)="cancelForgotPassword()">Back to login</button>
+        }
+      } @else if (!pendingMfaResolver()) {
         <form (ngSubmit)="onLogin()" class="login-form">
           <mat-form-field appearance="outline">
             <mat-label>Email</mat-label>
@@ -41,6 +68,7 @@
             }
           </button>
 
+          <button type="button" class="forgot-link" (click)="openForgotPassword()">Forgot password?</button>
           <a routerLink="/signup" class="signup-link">Request access</a>
         </form>
       } @else {

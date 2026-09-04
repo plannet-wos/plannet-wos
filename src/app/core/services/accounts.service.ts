@@ -14,7 +14,7 @@ import {
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { Account } from '../models/account.model';
-import { Rank, ROLE_BY_RANK, Scope, SCOPE_BY_RANK, approverRank } from '../constants/roles';
+import { RANK, Rank, ROLE_BY_RANK, Scope, SCOPE_BY_RANK, approverRank } from '../constants/roles';
 
 export interface RequestRoleParams {
   uid: string;
@@ -87,6 +87,35 @@ export class AccountsService {
     if (scope === 'state' && approver.stateId) clauses.push(where('stateId', '==', approver.stateId));
     if (scope === 'alliance' && approver.allianceId) clauses.push(where('allianceId', '==', approver.allianceId));
     const q = query(collection(this.firestore, 'accounts'), ...clauses);
+    return collectionData(q) as Observable<Account[]>;
+  }
+
+  /**
+   * All pending/active R4 requests across EVERY alliance in a state — not just one R5's own
+   * alliance. Backs the state cockpit's R4 queue for state_admin/superadmin, who (per
+   * firestore.rules' sameScope()) can approve/revoke any R4 in their state, not only within
+   * an alliance they personally lead — a state-wide escalation path for when an R5 is slow
+   * or unavailable to clear their own queue. Rank-filtered directly by stateId rather than
+   * going through pendingForApprover$/activeManagedBy$ (which key off an R5's own
+   * allianceId) since there's no single "approver" alliance here.
+   */
+  pendingR4ForState$(stateId: string): Observable<Account[]> {
+    const q = query(
+      collection(this.firestore, 'accounts'),
+      where('stateId', '==', stateId),
+      where('rank', '==', RANK.R4),
+      where('status', '==', 'pending'),
+    );
+    return collectionData(q) as Observable<Account[]>;
+  }
+
+  activeR4ForState$(stateId: string): Observable<Account[]> {
+    const q = query(
+      collection(this.firestore, 'accounts'),
+      where('stateId', '==', stateId),
+      where('rank', '==', RANK.R4),
+      where('status', '==', 'active'),
+    );
     return collectionData(q) as Observable<Account[]>;
   }
 

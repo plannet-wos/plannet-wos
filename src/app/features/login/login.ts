@@ -81,4 +81,40 @@ export class LoginComponent {
     this.otp = '';
     this.error.set('');
   }
+
+  // --- forgot password ---
+  showForgotPassword = signal(false);
+  resetEmail = '';
+  resetSent = signal(false);
+
+  openForgotPassword(): void {
+    this.resetEmail = this.email;
+    this.resetSent.set(false);
+    this.error.set('');
+    this.showForgotPassword.set(true);
+  }
+
+  cancelForgotPassword(): void {
+    this.showForgotPassword.set(false);
+    this.resetSent.set(false);
+  }
+
+  async sendPasswordReset(): Promise<void> {
+    if (!this.resetEmail) return;
+    this.loading.set(true);
+    this.error.set('');
+    try {
+      // Same "check your inbox" outcome whether or not the address has an account — see
+      // AuthService.sendPasswordReset()'s doc comment on why user-not-found is swallowed here.
+      await this.auth.sendPasswordReset(this.resetEmail);
+    } catch (err) {
+      if ((err as { code?: string }).code !== 'auth/user-not-found') {
+        this.error.set('Something went wrong — try again in a moment');
+        this.loading.set(false);
+        return;
+      }
+    }
+    this.resetSent.set(true);
+    this.loading.set(false);
+  }
 }

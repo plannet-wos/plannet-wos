@@ -172,10 +172,16 @@
     }
   }
 
-  @if (leadsAlliance()) {
+  @if (isStateAdminOrAbove() || leadsAlliance()) {
     <mat-card class="table-card">
       <mat-card-header>
-        <mat-card-title>Pending R4 requests — {{ account()?.allianceId }}</mat-card-title>
+        <mat-card-title>
+          @if (isStateAdminOrAbove()) {
+            Pending R4 requests — state {{ stateId }} (any alliance)
+          } @else {
+            Pending R4 requests — {{ account()?.allianceId }}
+          }
+        </mat-card-title>
       </mat-card-header>
       <mat-card-content>
         @if (pendingR4().length === 0) {

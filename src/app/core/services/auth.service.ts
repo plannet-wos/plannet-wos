@@ -6,6 +6,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
+  sendPasswordResetEmail,
   reload,
   signOut,
   onAuthStateChanged,
@@ -180,6 +181,17 @@ export class AuthService {
 
   logout(): void {
     signOut(this.auth);
+  }
+
+  /**
+   * Sends Firebase's own managed "reset your password" email. Doesn't require the candidate
+   * to be signed in. Depending on the project's email-enumeration-protection setting this
+   * either silently no-ops or throws auth/user-not-found for an email with no account — the
+   * caller should show the same "check your inbox" message either way rather than surfacing
+   * that error, so this can't be used to probe which addresses have accounts.
+   */
+  async sendPasswordReset(email: string): Promise<void> {
+    await sendPasswordResetEmail(this.auth, email);
   }
 
   /**
