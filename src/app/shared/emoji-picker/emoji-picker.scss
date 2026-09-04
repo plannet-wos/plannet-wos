@@ -20,6 +20,8 @@
   border-radius: 6px;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.08);
+    // rgba(255,255,255,…), not (0,0,0,…) — this app's global theme is dark (see styles.scss),
+    // so a black overlay here was reading as barely-visible dark-on-dark.
+    background: rgba(255, 255, 255, 0.12);
   }
 }
