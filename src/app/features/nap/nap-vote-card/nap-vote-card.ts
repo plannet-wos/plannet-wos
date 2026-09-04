@@ -79,8 +79,18 @@ export class NapVoteCardComponent {
     const account = this.auth.account();
     if (!account || !this.auth.isActive()) return false;
     const vote = this.vote();
-    if (account.stateId !== vote.stateId) return false;
-    return vote.voteScope === 'r5_only' ? account.rank === RANK.R5 : !!account.allianceId;
+    // Superadmin has no stateId at all (they're global, not tied to one state) — same bypass
+    // canManage/canCreate already use, missing here before. Without it, a superadmin could
+    // never vote on ANY vote, in either scope, regardless of alliance leadership.
+    if (account.rank !== RANK.SUPERADMIN && account.stateId !== vote.stateId) return false;
+    if (vote.voteScope === 'r5_only') {
+      // Real R5, or a state_admin/superadmin who's self-tagged "I also lead this alliance" —
+      // the same R5-equivalent standing that tag already grants elsewhere (state-admin.ts's
+      // leadsAlliance(), the R4 queue). Being someone's alliance's R5 in substance is what
+      // "R5 only" means here, not the literal rank number.
+      return account.rank <= RANK.R5 && !!account.allianceId;
+    }
+    return !!account.allianceId;
   });
 
   readonly canManage = computed(() => {
