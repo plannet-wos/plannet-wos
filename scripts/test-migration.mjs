@@ -61,6 +61,15 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
   });
   // A second alliance already migrated (idempotency check) — must be left untouched.
   await setDoc(doc(db, 'alliances/3038-wolf'), { id: '3038-wolf', stateId: '3038', slug: 'wolf', name: 'Wolf', createdAt: 1 });
+
+  // Legacy svs_forms round — no stateId yet, same shape a real pre-rollout round has.
+  await setDoc(doc(db, 'svs_forms/round1'), {
+    highestFcLevel: 8, battleDate: '2026-09-05', submissionsOpenAt: 1, submissionsCloseAt: 2,
+  });
+  // Already-stamped round (idempotency check) — must be left untouched.
+  await setDoc(doc(db, 'svs_forms/round2'), {
+    stateId: '3038', highestFcLevel: 5, battleDate: '2026-08-01', submissionsOpenAt: 1, submissionsCloseAt: 2,
+  });
 });
 // Deliberately not calling testEnv.cleanup() here — it clears the emulator's Firestore data,
 // which would wipe the fixtures we just seeded before the migration script ever reads them.
@@ -112,6 +121,13 @@ assert.deepEqual(player.data().tierByAlliance, { '3038-eagle': 'whale' },
 
 const task = await getDoc(doc(db, 'tasks/t1'));
 assert.equal(task.data().allianceId, '3038-eagle', 'task.allianceId should be rewritten');
+
+const svsForm1 = await getDoc(doc(db, 'svs_forms/round1'));
+assert.equal(svsForm1.data().stateId, '3038', 'legacy svs_forms round should get stateId stamped');
+assert.equal(svsForm1.data().highestFcLevel, 8, 'stamping stateId should not disturb other fields');
+
+const svsForm2 = await getDoc(doc(db, 'svs_forms/round2'));
+assert.equal(svsForm2.data().highestFcLevel, 5, 'already-stamped svs_forms round should be untouched');
 
 const assignment = await getDoc(doc(db, 'assignments/a1'));
 assert.equal(assignment.data().allianceId, '3038-eagle', 'assignment.allianceId should be rewritten');

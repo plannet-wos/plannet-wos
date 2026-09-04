@@ -11,6 +11,12 @@
  *   3. Rewrites the `allianceId` field on every players/tasks/assignments/wiki_articles/
  *      article_feedback/admin_feedback doc that referenced an old bare alliance ID, to the
  *      new "3038-{oldId}" composite.
+ *   4. Stamps stateId: '3038' onto every svs_forms doc that doesn't already have one (same
+ *      doc ID, no other field touched) — svs-prep's home page lists rounds by stateId, so a
+ *      round left without one becomes invisible there the moment the new code goes live, even
+ *      though direct /survey/:id links to it keep working (those look up by doc ID, not
+ *      state). svs_submissions/svs_assignments need no equivalent: neither is ever queried by
+ *      stateId anywhere in the app, only by form ID.
  *
  * Resumable: the old->new id map step 3 uses is rebuilt from the CURRENT state of the
  * alliances collection after step 2 (every alliance with stateId=='3038' contributes
@@ -221,6 +227,20 @@ async function main() {
       await batch.commit();
     }
     console.log(`${collectionName}: rewrote ${toRewrite.length} doc(s)`);
+  }
+
+  // 4. Stamp stateId onto legacy svs_forms docs.
+  const svsFormsSnap = await getDocs(collection(db, 'svs_forms'));
+  const legacySvsForms = svsFormsSnap.docs.filter((d) => !d.data().stateId);
+  if (legacySvsForms.length === 0) {
+    console.log('svs_forms: nothing to stamp');
+  } else if (args.dryRun) {
+    console.log(`Would stamp stateId onto ${legacySvsForms.length} svs_forms doc(s)`);
+  } else {
+    for (const d of legacySvsForms) {
+      await setDoc(doc(db, `svs_forms/${d.id}`), { stateId: STATE_ID }, { merge: true });
+    }
+    console.log(`svs_forms: stamped stateId onto ${legacySvsForms.length} doc(s)`);
   }
 
   console.log(args.dryRun ? 'Dry run complete — nothing was written.' : 'Migration complete.');
