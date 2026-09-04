@@ -16,6 +16,12 @@
         Admin console
       </button>
     }
+    @if (canUseNap()) {
+      <button mat-button (click)="goToNap()">
+        <mat-icon>how_to_vote</mat-icon>
+        NAP
+      </button>
+    }
 
     <button mat-icon-button [matMenuTriggerFor]="userMenu">
       <mat-icon>account_circle</mat-icon>

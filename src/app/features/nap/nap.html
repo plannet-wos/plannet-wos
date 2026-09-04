@@ -1,0 +1,114 @@
+<mat-toolbar class="toolbar">
+  <button mat-icon-button (click)="goBack()">
+    <mat-icon>arrow_back</mat-icon>
+  </button>
+  <span class="brand">State {{ stateId }} — NAP Voting Council</span>
+  <span class="spacer"></span>
+  <a mat-button [routerLink]="['/', stateId, 'nap', 'archive']">
+    <mat-icon>archive</mat-icon>
+    Archive
+  </a>
+  <button mat-icon-button (click)="logout()">
+    <mat-icon>logout</mat-icon>
+  </button>
+</mat-toolbar>
+
+<div class="nap">
+  <p class="intro">
+    R4, R5 and state admins vote here on discussed topics. R5 and up can start a new vote; once its
+    deadline passes it moves to the public <a [routerLink]="['/', stateId, 'nap', 'archive']">archive</a>.
+  </p>
+
+  @if (canCreate()) {
+    @if (!showCreateForm()) {
+      <button mat-flat-button color="primary" (click)="showCreateForm.set(true)">
+        <mat-icon>add</mat-icon>
+        Start a vote
+      </button>
+    } @else {
+      <mat-card class="form-card">
+        <mat-card-header>
+          <mat-card-title>Start a new vote</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <form (ngSubmit)="createVote()" class="create-form">
+            <mat-form-field appearance="outline" class="question-field">
+              <mat-label>Question</mat-label>
+              <textarea matInput [(ngModel)]="newQuestion" name="question" rows="2" maxlength="500"></textarea>
+              <app-emoji-picker matSuffix (emojiSelected)="insertEmojiIntoQuestion($event)"></app-emoji-picker>
+            </mat-form-field>
+
+            <div class="options-editor">
+              <label class="options-label">Answers</label>
+              @for (opt of newOptions; track $index) {
+                <div class="option-input-row">
+                  <mat-form-field appearance="outline" class="option-field">
+                    <mat-label>Answer {{ $index + 1 }}</mat-label>
+                    <input matInput [(ngModel)]="newOptions[$index]" name="option{{ $index }}" maxlength="200" />
+                    <app-emoji-picker matSuffix (emojiSelected)="insertEmojiIntoOption($index, $event)"></app-emoji-picker>
+                  </mat-form-field>
+                  <button mat-icon-button type="button" [disabled]="newOptions.length <= 2" (click)="removeOption($index)" aria-label="Remove answer">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              }
+              <button mat-button type="button" (click)="addOption()" [disabled]="newOptions.length >= 20">
+                <mat-icon>add</mat-icon> Add another answer
+              </button>
+            </div>
+
+            <div class="settings-row">
+              <div class="setting-group">
+                <label>Answers are</label>
+                <mat-radio-group [(ngModel)]="newChoiceMode" name="choiceMode">
+                  <mat-radio-button value="single">Single choice</mat-radio-button>
+                  <mat-radio-button value="multiple">Multiple choice</mat-radio-button>
+                </mat-radio-group>
+              </div>
+
+              <div class="setting-group">
+                <label>Who can vote</label>
+                <mat-radio-group [(ngModel)]="newVoteScope" name="voteScope">
+                  <mat-radio-button value="r5_only">R5 only</mat-radio-button>
+                  <mat-radio-button value="alliance">Alliance vote — everyone votes, one vote per alliance counts</mat-radio-button>
+                </mat-radio-group>
+              </div>
+            </div>
+
+            <mat-form-field appearance="outline" class="deadline-field">
+              <mat-label>Voting closes</mat-label>
+              <input matInput type="datetime-local" [(ngModel)]="newDeadlineLocal" name="deadline" />
+            </mat-form-field>
+
+            <div class="form-actions">
+              <button mat-flat-button color="primary" type="submit" [disabled]="!canSubmitCreate() || creating()">
+                Create vote
+              </button>
+              <button mat-button type="button" (click)="showCreateForm.set(false)">Cancel</button>
+            </div>
+          </form>
+        </mat-card-content>
+      </mat-card>
+    }
+  }
+
+  <h2 class="section-title">Active votes</h2>
+  @if (activeVotes().length === 0) {
+    <p class="empty">No votes are open right now.</p>
+  }
+  <div class="votes-list">
+    @for (vote of activeVotes(); track vote.id) {
+      <app-nap-vote-card [vote]="vote"></app-nap-vote-card>
+    }
+  </div>
+
+  @if (canManage() && hiddenVotes().length > 0) {
+    <h2 class="section-title">Hidden votes</h2>
+    <p class="hint">Only visible to state admins and up — these are excluded from the active list and the public archive.</p>
+    <div class="votes-list">
+      @for (vote of hiddenVotes(); track vote.id) {
+        <app-nap-vote-card [vote]="vote"></app-nap-vote-card>
+      }
+    </div>
+  }
+</div>

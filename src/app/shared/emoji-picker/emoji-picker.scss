@@ -1,0 +1,25 @@
+:host {
+  display: inline-block;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 4px;
+  max-width: 280px;
+}
+
+.emoji-cell {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 6px;
+  border-radius: 6px;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.08);
+  }
+}

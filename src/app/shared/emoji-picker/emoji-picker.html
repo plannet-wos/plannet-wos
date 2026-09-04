@@ -1,0 +1,10 @@
+<button mat-icon-button type="button" [matMenuTriggerFor]="menu" matTooltip="Insert emoji" aria-label="Insert emoji">
+  <mat-icon>mood</mat-icon>
+</button>
+<mat-menu #menu="matMenu" class="emoji-menu">
+  <div class="emoji-grid" (click)="$event.stopPropagation()">
+    @for (e of emojis; track e) {
+      <button type="button" class="emoji-cell" (click)="pick(e)">{{ e }}</button>
+    }
+  </div>
+</mat-menu>

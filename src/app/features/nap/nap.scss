@@ -1,0 +1,105 @@
+.toolbar {
+  .brand {
+    margin-left: 8px;
+    font-weight: 500;
+  }
+  .spacer {
+    flex: 1;
+  }
+}
+
+.nap {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.intro {
+  color: rgba(0, 0, 0, 0.65);
+  margin-bottom: 16px;
+}
+
+.section-title {
+  margin-top: 32px;
+}
+
+.empty,
+.hint {
+  color: rgba(0, 0, 0, 0.6);
+  font-style: italic;
+}
+
+.votes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.form-card {
+  margin: 16px 0;
+  max-width: 700px;
+}
+
+.create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.question-field,
+.deadline-field {
+  width: 100%;
+}
+
+.options-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.options-label {
+  font-size: 0.8rem;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.option-input-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.option-field {
+  flex: 1;
+}
+
+.settings-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 8px 0;
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  label {
+    font-size: 0.8rem;
+    color: rgba(0, 0, 0, 0.6);
+  }
+
+  mat-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}

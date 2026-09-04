@@ -1,0 +1,37 @@
+.toolbar {
+  .brand {
+    margin-left: 8px;
+    font-weight: 500;
+  }
+  .spacer {
+    flex: 1;
+  }
+}
+
+.archive {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.intro {
+  color: rgba(0, 0, 0, 0.65);
+  margin-bottom: 16px;
+}
+
+.section-title {
+  margin-top: 32px;
+}
+
+.empty,
+.hint {
+  color: rgba(0, 0, 0, 0.6);
+  font-style: italic;
+}
+
+.votes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}

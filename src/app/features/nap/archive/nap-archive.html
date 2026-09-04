@@ -1,0 +1,38 @@
+<mat-toolbar class="toolbar">
+  @if (isAuthenticated()) {
+    <button mat-icon-button (click)="goToNap()">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+  }
+  <span class="brand">State {{ stateId }} — NAP Archive</span>
+  <span class="spacer"></span>
+  <a mat-button [routerLink]="['/dashboard']">
+    <mat-icon>home</mat-icon>
+    Dashboard
+  </a>
+</mat-toolbar>
+
+<div class="archive">
+  <p class="intro">
+    The decisions the NAP council has made — every vote here is closed and final. Public, no login required.
+  </p>
+
+  @if (archivedVotes().length === 0) {
+    <p class="empty">No decisions have been archived yet.</p>
+  }
+  <div class="votes-list">
+    @for (vote of archivedVotes(); track vote.id) {
+      <app-nap-vote-card [vote]="vote"></app-nap-vote-card>
+    }
+  </div>
+
+  @if (canManage() && hiddenVotes().length > 0) {
+    <h2 class="section-title">Hidden votes</h2>
+    <p class="hint">Only visible to state admins and up — excluded from the public archive above.</p>
+    <div class="votes-list">
+      @for (vote of hiddenVotes(); track vote.id) {
+        <app-nap-vote-card [vote]="vote"></app-nap-vote-card>
+      }
+    </div>
+  }
+</div>

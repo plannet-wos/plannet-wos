@@ -36,5 +36,19 @@ export const routes: Routes = [
     loadComponent: () => import('./features/state-admin/state-admin').then((m) => m.StateAdminComponent),
     canActivate: [stateScopedGuard(RANK.R5)],
   },
+  {
+    // Public — no guard. "The decisions the NAP made" are meant to be visible to anyone, see
+    // nap-archive.ts's doc comment. Registered separately from ':stateId/nap' below (rather
+    // than a child route) since one is guarded and the other deliberately isn't.
+    path: ':stateId/nap/archive',
+    loadComponent: () => import('./features/nap/archive/nap-archive').then((m) => m.NapArchiveComponent),
+  },
+  {
+    // R4 and up, scoped to their own state (superadmin bypasses) — any admin the NAP council
+    // is for, not just state_admin/R5 like the console above.
+    path: ':stateId/nap',
+    loadComponent: () => import('./features/nap/nap').then((m) => m.NapComponent),
+    canActivate: [stateScopedGuard(RANK.R4)],
+  },
   { path: '**', redirectTo: 'dashboard' },
 ];

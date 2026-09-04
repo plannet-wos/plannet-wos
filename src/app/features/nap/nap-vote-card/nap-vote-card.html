@@ -1,0 +1,87 @@
+<mat-card class="vote-card" [class.closed]="!isOpen()">
+  <mat-card-header>
+    <mat-card-title class="question">{{ vote().question }}</mat-card-title>
+    <mat-card-subtitle>
+      <mat-chip-set>
+        <mat-chip>{{ vote().choiceMode === 'single' ? 'Single choice' : 'Multiple choice' }}</mat-chip>
+        <mat-chip>{{ vote().voteScope === 'r5_only' ? 'R5 only' : 'Alliance vote' }}</mat-chip>
+        @if (isOpen()) {
+          <mat-chip color="primary">Open until {{ deadlineLabel() }}</mat-chip>
+        } @else {
+          <mat-chip>Closed {{ deadlineLabel() }}</mat-chip>
+        }
+        @if (vote().hidden) {
+          <mat-chip color="warn">Hidden</mat-chip>
+        }
+      </mat-chip-set>
+    </mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content>
+    <div class="options">
+      @if (isSingle()) {
+        <mat-radio-group [ngModel]="selected()[0]" (ngModelChange)="selectSingle($event)" [disabled]="!canVote() || !isOpen()">
+          @for (opt of vote().options; track opt.id) {
+            <div class="option-row" [class.leading]="!isOpen() && isLeading(opt.id)">
+              <mat-radio-button [value]="opt.id">{{ opt.text }}</mat-radio-button>
+              <div class="tally">
+                <div class="bar" [style.width.%]="((tallyFor(opt.id)?.votes ?? 0) / maxVotes()) * 100"></div>
+                <span class="count">{{ tallyFor(opt.id)?.votes ?? 0 }}</span>
+              </div>
+            </div>
+          }
+        </mat-radio-group>
+      } @else {
+        @for (opt of vote().options; track opt.id) {
+          <div class="option-row" [class.leading]="!isOpen() && isLeading(opt.id)">
+            <mat-checkbox [checked]="isSelected(opt.id)" (change)="toggleMulti(opt.id, $event.checked)" [disabled]="!canVote() || !isOpen()">
+              {{ opt.text }}
+            </mat-checkbox>
+            <div class="tally">
+              <div class="bar" [style.width.%]="((tallyFor(opt.id)?.votes ?? 0) / maxVotes()) * 100"></div>
+              <span class="count">{{ tallyFor(opt.id)?.votes ?? 0 }}</span>
+            </div>
+          </div>
+        }
+      }
+    </div>
+
+    <p class="tally-summary">
+      {{ tally().ballotCount }} ballot{{ tally().ballotCount === 1 ? '' : 's' }}
+      @if (vote().voteScope === 'alliance') {
+        &middot; {{ tally().allianceCount }} alliance{{ tally().allianceCount === 1 ? '' : 's' }} represented
+      }
+    </p>
+
+    @if (isOpen()) {
+      @if (canVote()) {
+        <button mat-flat-button color="primary" [disabled]="selected().length === 0 || submitting()" (click)="submit()">
+          @if (submitting()) {
+            <mat-spinner diameter="18"></mat-spinner>
+          } @else {
+            {{ myBallot() ? 'Update my vote' : 'Cast my vote' }}
+          }
+        </button>
+      } @else if (!signedIn()) {
+        <p class="hint">Sign in to vote on this council.</p>
+      } @else {
+        <p class="hint">You're not eligible to vote on this one — see "who can vote" above.</p>
+      }
+    } @else if (tally().ballotCount === 0) {
+      <p class="hint">No votes were cast before this closed.</p>
+    }
+  </mat-card-content>
+
+  @if (canManage()) {
+    <mat-card-actions>
+      <button mat-button (click)="toggleHidden()">
+        <mat-icon>{{ vote().hidden ? 'visibility' : 'visibility_off' }}</mat-icon>
+        {{ vote().hidden ? 'Unhide' : 'Hide' }}
+      </button>
+      <button mat-button color="warn" (click)="deleteVote()">
+        <mat-icon>delete_forever</mat-icon>
+        Delete
+      </button>
+    </mat-card-actions>
+  }
+</mat-card>
