@@ -52,6 +52,12 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
     'r4-pending-mfa': { uid: 'r4-pending-mfa', email: 'r4mfa@x.com', role: 'r4', rank: 3, stateId: '3038', allianceId: '3038-eagle', status: 'pending', mfaEnrolled: true, requestedAt: 1 },
     'r4-active': { uid: 'r4-active', email: 'r4active@x.com', role: 'r4', rank: 3, stateId: '3038', allianceId: '3038-eagle', status: 'active', mfaEnrolled: true, requestedAt: 1 },
     'r4-active-2': { uid: 'r4-active-2', email: 'r4active2@x.com', role: 'r4', rank: 3, stateId: '3038', allianceId: '3038-eagle', status: 'active', mfaEnrolled: true, requestedAt: 1 },
+    // A state_admin who ALSO personally leads an alliance (allianceId set on their own
+    // state_admin account) — the "most state admins are also their alliance's R5" case.
+    'sa-falcon-leader': { uid: 'sa-falcon-leader', email: 'sfl@x.com', role: 'state_admin', rank: 1, stateId: '3038', allianceId: '3038-falcon', status: 'active', mfaEnrolled: true, requestedAt: 1 },
+    'r4-falcon-pending': { uid: 'r4-falcon-pending', email: 'r4falcon@x.com', role: 'r4', rank: 3, stateId: '3038', allianceId: '3038-falcon', status: 'pending', mfaEnrolled: true, requestedAt: 1 },
+    'r4-falcon-active': { uid: 'r4-falcon-active', email: 'r4falconactive@x.com', role: 'r4', rank: 3, stateId: '3038', allianceId: '3038-falcon', status: 'active', mfaEnrolled: true, requestedAt: 1 },
+    'r5-pending-3038b': { uid: 'r5-pending-3038b', email: 'r5pendingb@x.com', role: 'r5', rank: 2, stateId: '3038', allianceId: '3038-hawk', status: 'pending', mfaEnrolled: true, requestedAt: 1 },
   };
   for (const [uid, data] of Object.entries(accounts)) {
     await setDoc(doc(db, `accounts/${uid}`), data);
@@ -139,6 +145,31 @@ await check('R5 cannot approve/revoke an R4 in a DIFFERENT alliance', async () =
 await check('R4 cannot manage anyone, not even another R4', async () => {
   const db = testEnv.authenticatedContext('r4-active').firestore();
   await assertFails(updateDoc(doc(db, 'accounts/r4-active-2'), { status: 'suspended' }));
+});
+
+// --- accounts: state_admin who also leads an alliance (allianceId set on their own account) ---
+await check("state_admin who also leads an alliance approves an R4 pending request in THAT alliance", async () => {
+  const db = testEnv.authenticatedContext('sa-falcon-leader').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r4-falcon-pending'), {
+    status: 'active', approvedBy: 'sa-falcon-leader', approvedAt: Date.now(),
+  }));
+});
+
+await check("the same state_admin cannot manage an R4 in a DIFFERENT alliance, even though it's in their state", async () => {
+  const db = testEnv.authenticatedContext('sa-falcon-leader').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/r4-active'), { status: 'suspended' }));
+});
+
+await check("a PLAIN state_admin (no allianceId) cannot manage an R4 anywhere in their state — R4 administration requires personally leading that alliance", async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/r4-falcon-active'), { status: 'suspended' }));
+});
+
+await check("state_admin who also leads an alliance still approves R5 requests state-wide, unaffected — R5 administration was never alliance-restricted", async () => {
+  const db = testEnv.authenticatedContext('sa-falcon-leader').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r5-pending-3038b'), {
+    status: 'active', approvedBy: 'sa-falcon-leader', approvedAt: Date.now(),
+  }));
 });
 
 await check('R5 cannot create/manage alliances (rank too low)', async () => {

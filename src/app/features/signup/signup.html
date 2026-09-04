@@ -26,12 +26,18 @@
 
         <mat-form-field appearance="outline">
           <mat-label>Requested role</mat-label>
-          <mat-select [(ngModel)]="rank" name="rank" required>
+          <mat-select [(ngModel)]="rank" name="rank" required (selectionChange)="onRankChange()">
             @for (r of requestableRanks; track r) {
               <mat-option [value]="r">{{ roleLabel[r === RANK.STATE_ADMIN ? 'state_admin' : r === RANK.R5 ? 'r5' : 'r4'] }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
+
+        @if (showAllianceOptIn()) {
+          <mat-checkbox [(ngModel)]="alsoLeadsAlliance" name="alsoLeadsAlliance">
+            I also personally lead an alliance in this state, as its R5
+          </mat-checkbox>
+        }
 
         @if (needsAlliance()) {
           <mat-form-field appearance="outline">

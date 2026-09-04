@@ -47,7 +47,13 @@ export class StateAdminComponent {
   readonly stateId = inject(ActivatedRoute).snapshot.paramMap.get('stateId')!;
   readonly account = this.auth.account;
   readonly isStateAdminOrAbove = computed(() => (this.account()?.rank ?? 99) <= RANK.STATE_ADMIN);
-  readonly isR5 = computed(() => this.account()?.rank === RANK.R5);
+  // Shows the R4 queue below: true for a real R5, and also for a state_admin who personally
+  // leads an alliance too (allianceId set on their own account — see account.model.ts's
+  // comment). Rank-agnostic on purpose — the pendingR4/activeR4 queries below already key
+  // off allianceId alone, and this route only ever admits rank <= R5 in the first place
+  // (see app.routes.ts's stateScopedGuard), so nothing but superadmin (no allianceId) and
+  // R4 (never reaches this route) would otherwise fail the check anyway.
+  readonly leadsAlliance = computed(() => !!this.account()?.allianceId);
 
   // --- state_admin view: alliances + R5 queue ---
   readonly alliances = toSignal(this.allianceService.listForState$(this.stateId), { initialValue: [] as Alliance[] });
@@ -60,8 +66,9 @@ export class StateAdminComponent {
     { initialValue: [] as Account[] },
   );
 
-  // --- R5 view: R4 queue for their own alliance. account() loads asynchronously (it's an
-  // onSnapshot listener on accounts/{uid}), so this re-derives the query via switchMap
+  // --- R4 queue for the signed-in account's own alliance (R5, or a state_admin who also
+  // leads that alliance — see leadsAlliance() above). account() loads asynchronously (it's
+  // an onSnapshot listener on accounts/{uid}), so this re-derives the query via switchMap
   // whenever it changes rather than reading allianceId once at construction time. ---
   private readonly account$ = toObservable(this.account);
 

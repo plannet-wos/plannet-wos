@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../core/services/auth.service';
 import { AccountsService } from '../../core/services/accounts.service';
@@ -25,6 +26,7 @@ import { RANK, Rank, REQUESTABLE_RANKS, ROLE_LABEL, SCOPE_BY_RANK } from '../../
     MatInputModule,
     MatSelectModule,
     MatButtonModule,
+    MatCheckboxModule,
     MatProgressSpinnerModule,
   ],
   templateUrl: './signup.html',
@@ -47,11 +49,37 @@ export class SignupComponent {
   rank: Rank | null = null;
   allianceSlug = '';
 
+  // Most real state admins also personally lead one alliance as its R5 — this lets them get
+  // both from a single account/login instead of needing two. Opt-in and state_admin-only:
+  // never required (a "pure" state_admin with no alliance is completely normal too), and
+  // never offered for R5/R4 requests, which already always need an alliance below.
+  alsoLeadsAlliance = false;
+
   readonly alliancesForState = signal<Alliance[]>([]);
-  readonly needsAlliance = computed(() => this.rank !== null && SCOPE_BY_RANK[this.rank] === 'alliance');
 
   loading = signal(false);
   error = signal('');
+
+  // Plain methods, not computed() — computed() only re-evaluates when a SIGNAL it read
+  // changes; rank/alsoLeadsAlliance/allianceSlug etc. here are plain ngModel-bound fields
+  // (matching every other form field in this component), so a computed() reading them would
+  // compute once against whatever they were at first read (all still their initial empty/
+  // null defaults) and then never update again, no matter what the user later picks — a real
+  // instance of that exact bug is what "needsAlliance" used to be before this fix. A plain
+  // method has no such cache: the template calls it fresh on every check.
+  showAllianceOptIn(): boolean {
+    return this.rank === RANK.STATE_ADMIN;
+  }
+
+  needsAlliance(): boolean {
+    return this.rank !== null
+      && (SCOPE_BY_RANK[this.rank] === 'alliance' || (this.rank === RANK.STATE_ADMIN && this.alsoLeadsAlliance));
+  }
+
+  /** Called on (selectionChange) of the role select — a role switch away from state_admin makes the opt-in moot. */
+  onRankChange(): void {
+    if (this.rank !== RANK.STATE_ADMIN) this.alsoLeadsAlliance = false;
+  }
 
   /** Called on (selectionChange) of the state select — re-fetches the alliance picker's options. */
   onStateChange(): void {

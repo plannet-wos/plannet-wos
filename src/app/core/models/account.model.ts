@@ -19,7 +19,13 @@ export interface Account {
   rank: Rank;
   /** Set for state_admin, and denormalized onto r5/r4 too (from their alliance) so rules never need a second get(). */
   stateId?: string;
-  /** Set for r5/r4 only. */
+  /**
+   * Always set for r5/r4. Optionally set on state_admin too, when the same person also
+   * personally leads that one alliance as its R5 — see roles.ts's header comment and
+   * firestore.rules' sameScope() for what this does and doesn't grant beyond plain
+   * state_admin: R4 account-management and alliance-admin tooling for THIS alliance only,
+   * never any other alliance in the state (state-wide R5 approval is unaffected either way).
+   */
   allianceId?: string;
   status: 'pending' | 'active' | 'suspended';
   mfaEnrolled: boolean;
