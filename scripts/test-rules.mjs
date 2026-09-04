@@ -557,7 +557,44 @@ await check("'r5_only' vote accepts an R5 ballot", async () => {
   }));
 });
 
-await check('a state_admin with no allianceId cannot vote on an alliance-scope vote', async () => {
+await check("'r5_only' vote accepts a state_admin who's self-tagged as leading an alliance — same R5-equivalent standing that tag already grants elsewhere (state-admin.ts's R4 queue)", async () => {
+  const db = testEnv.authenticatedContext('sa-falcon-leader').firestore();
+  await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-r5-only_sa-falcon-leader'), {
+    voteId: 'vote-r5-only', uid: 'sa-falcon-leader', email: 'sfl@x.com', rank: 1, allianceId: '3038-falcon',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check("'r5_only' vote accepts a superadmin who's self-tagged as leading an alliance — even though a superadmin's own account has no stateId at all (this was the actual bug reported live: a superadmin who's also HOC's R5 couldn't vote on anything)", async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/super1'), { allianceId: '3038-eagle' }, { merge: true }));
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-r5-only_super1'), {
+    voteId: 'vote-r5-only', uid: 'super1', email: 's@x.com', rank: 0, allianceId: '3038-eagle',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check('the same self-tagged superadmin can also vote on an ALLIANCE-scope vote', async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_super1'), {
+    voteId: 'vote-open', uid: 'super1', email: 's@x.com', rank: 0, allianceId: '3038-eagle',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+  // restore super1's alliance tag to cleared, matching what later tests expect.
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/super1'), { allianceId: deleteField() }, { merge: true }));
+});
+
+await check('a plain superadmin (no alliance tag) still cannot vote on an r5_only vote — no alliance to be the R5 of', async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-r5-only_super1-plain'), {
+    voteId: 'vote-r5-only', uid: 'super1', email: 's@x.com', rank: 0, allianceId: '',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check('a plain state_admin with no allianceId cannot vote on an alliance-scope vote', async () => {
   const db = testEnv.authenticatedContext('sa-3038').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_sa-3038'), {
     voteId: 'vote-open', uid: 'sa-3038', email: 'sa3038@x.com', rank: 1, allianceId: '',

@@ -248,11 +248,16 @@ service cloud.firestore {
     // vote hasn't hit its deadline, your selections are a real subset of that vote's options
     // and match its single/multiple setting, and your denormalized rank/allianceId/email
     // match your OWN account doc right now (so you can't vote as a rank or alliance that
-    // isn't actually yours) — plus, per voteScope: 'r5_only' requires you actually ARE an R5;
-    // 'alliance' just requires you belong to an alliance in this vote's state (R4, R5, or a
-    // state_admin/superadmin self-tagged as also leading one — see accounts' self-tag clause
-    // above). Ballots are never deleted by their own voter — only state_admin+, as part of
-    // deleting the whole vote (see NapService.remove()).
+    // isn't actually yours) — plus, per voteScope: 'r5_only' requires you actually BE an
+    // alliance's R5, real (rank 2) or a state_admin/superadmin self-tagged as also leading
+    // one (myRank() <= 2 here, combined with the allianceId-match clause above which already
+    // forces a real, non-null alliance either way — see accounts' self-tag clause elsewhere in
+    // this file for that same "also leads" standing); 'alliance' just requires belonging to an
+    // alliance in this vote's state, any rank. The stateId check bypasses for superadmin
+    // (myRank() == 0) same as everywhere else in this file — a superadmin's own account has no
+    // stateId at all, so without this bypass a superadmin could never vote on ANY vote in
+    // either scope, even one for an alliance they lead. Ballots are never deleted by their own
+    // voter — only state_admin+, as part of deleting the whole vote (see NapService.remove()).
     match /nap_ballots/{ballotId} {
       allow read: if true;
 
@@ -269,8 +274,8 @@ service cloud.firestore {
         && request.resource.data.selections.hasOnly(napVote(request.resource.data.voteId).optionIds)
         && (napVote(request.resource.data.voteId).choiceMode == 'multiple' || request.resource.data.selections.size() == 1)
         && napVote(request.resource.data.voteId).deadline > request.time.toMillis()
-        && myAccount().stateId == napVote(request.resource.data.voteId).stateId
-        && (napVote(request.resource.data.voteId).voteScope != 'r5_only' || myRank() == 2);
+        && (myRank() == 0 || myAccount().stateId == napVote(request.resource.data.voteId).stateId)
+        && (napVote(request.resource.data.voteId).voteScope != 'r5_only' || myRank() <= 2);
 
       allow delete: if isActiveAccount() && myRank() <= 1
         && (myRank() == 0 || myAccount().stateId == napVote(resource.data.voteId).stateId);
