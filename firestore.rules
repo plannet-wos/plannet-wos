@@ -110,9 +110,11 @@ service cloud.firestore {
     // real TOTP possible at all. Four ranks, strictly hierarchical: superadmin(0) >
     // state_admin(1) > r5(2) > r4(3). A rank may only ever act on a STRICTLY lower rank,
     // within its own scope (global for superadmin, stateId for state_admin, allianceId for
-    // r5) — see sameScope() below. Every rank below superadmin must have mfaEnrolled == true
-    // BEFORE the rank above it can flip status to 'active' — enforced here, not just in the
-    // UI, via checking the PRE-write value (resource.data), not the one being written.
+    // r5) — see sameScope() below. mfaEnrolled is NOT required before a manager approves a
+    // candidate — TOTP enrollment is strongly encouraged (see totp-enroll.ts) but the
+    // approving manager can knowingly approve without it; they own that risk for their own
+    // state/alliance, not something rules force. The UI surfaces mfaEnrolled status so that's
+    // an informed choice.
     match /accounts/{uid} {
       allow read: if request.auth != null
         && (request.auth.uid == uid
@@ -140,17 +142,19 @@ service cloud.firestore {
         // same "state_admin edits R5, R5 edits R4" hierarchy as approval, just not limited to
         // the status field). Checked on BOTH old (resource.data) and new (request.resource.
         // data) rank/scope, not just old — a manager can't use this to move someone TO a
-        // rank/scope outside their own authority, only within it on both ends. resource.data.
-        // mfaEnrolled (the value already stored, before this write) must already be true — a
-        // manager's own write never sets it, so this can't be satisfied by anything the
-        // manager supplies themselves.
+        // rank/scope outside their own authority, only within it on both ends.
+        //
+        // Deliberately NOT requiring resource.data.mfaEnrolled == true here — a manager may
+        // approve a candidate who hasn't enrolled TOTP yet; the manager who does that is the
+        // one accepting the risk of an unprotected account in their state/alliance, not
+        // something rules should force. UI still surfaces TOTP status so that's an informed
+        // choice, not a silent one — see superadmin.html/state-admin.html's mfa column.
         (isActiveAccount()
           && myRank() < resource.data.rank
           && myRank() < request.resource.data.rank
           && request.resource.data.rank in [1, 2, 3]
           && sameScope(resource.data)
-          && sameScope(request.resource.data)
-          && resource.data.mfaEnrolled == true)
+          && sameScope(request.resource.data))
       );
 
       allow delete: if isActiveAccount() && myRank() == 0;

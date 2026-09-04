@@ -11,9 +11,24 @@
       } @else if (done()) {
         <p class="success">Authenticator enrolled. Your request is now waiting for approval.</p>
         <button mat-flat-button color="primary" (click)="goToLogin()">Back to login</button>
+      } @else if (needsVerification()) {
+        <p>Verify your email first — Firebase requires it before an authenticator app can be enrolled.</p>
+        <p>We sent a link to <strong>{{ email }}</strong>. Open it, then come back here.</p>
+        <button mat-flat-button color="primary" (click)="recheckVerification()">I've verified it</button>
+        <button mat-button (click)="resendVerificationEmail()" [disabled]="resent()">
+          {{ resent() ? 'Email resent' : "Didn't get it? Resend" }}
+        </button>
+        @if (error()) {
+          <p class="error">{{ error() }}</p>
+        }
       } @else {
         <ol class="steps">
-          <li>Scan this code with Google Authenticator (or any TOTP app).</li>
+          <li>
+            Don't have an authenticator app yet? Get
+            <a href="https://support.google.com/accounts/answer/1066447" target="_blank" rel="noopener">Google Authenticator</a>
+            (free, iOS &amp; Android) — or use any other TOTP app you already have.
+          </li>
+          <li>Scan this code with it.</li>
         </ol>
 
         @if (qrDataUrl()) {

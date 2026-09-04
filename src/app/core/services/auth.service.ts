@@ -6,6 +6,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendEmailVerification,
+  reload,
   signOut,
   onAuthStateChanged,
   multiFactor,
@@ -154,6 +155,23 @@ export class AuthService {
 
   logout(): void {
     signOut(this.auth);
+  }
+
+  /**
+   * Firebase Auth requires a verified email before it'll allow enrolling a second factor at
+   * all (multiFactor(user).getSession() throws auth/unverified-email otherwise) — this isn't
+   * something our own rules or UI choose to require, it's enforced Firebase-side. Reloads the
+   * user first since emailVerified on the cached User object only updates on reload() or a
+   * fresh sign-in, not just because the candidate clicked the link in another tab.
+   */
+  async checkEmailVerified(): Promise<boolean> {
+    const user = this.mustUser();
+    await reload(user);
+    return user.emailVerified;
+  }
+
+  async resendVerificationEmail(): Promise<void> {
+    await sendEmailVerification(this.mustUser());
   }
 
   // --- TOTP enrollment (done by an already-signed-in, not-yet-approved candidate) ---

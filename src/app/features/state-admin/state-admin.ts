@@ -163,6 +163,12 @@ export class StateAdminComponent {
   async approve(account: Account) {
     const approverUid = this.auth.user()?.uid;
     if (!approverUid) return;
+    // Approving without TOTP is allowed (see AccountsService.approve()'s doc comment) but
+    // it's the approver's call to make knowingly, not a silent default — a plain confirm()
+    // here is enough friction for that without building a whole dialog for it.
+    if (!account.mfaEnrolled && !confirm(`${account.email} hasn't set up an authenticator yet. Approve anyway?`)) {
+      return;
+    }
     try {
       await this.accounts.approve(account, approverUid);
       this.snackBar.open(`${account.email} approved`, '', { duration: 2500 });

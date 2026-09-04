@@ -38,8 +38,28 @@ export class TotpEnrollComponent implements OnInit {
   readonly error = signal('');
   readonly done = signal(false);
 
+  // Firebase Auth won't let us start MFA enrollment until the candidate's email is verified
+  // (see AuthService.checkEmailVerified()'s doc comment) — this used to just throw a raw,
+  // confusing auth/unverified-email error straight into the QR-code UI. Now it's a real,
+  // explicit step of its own: 'checking' (the initial reload) -> 'needs-verification' (show
+  // the "check your email" card) -> 'enrolling' (the QR/code UI, unchanged) -> done() as before.
+  readonly needsVerification = signal(false);
+  readonly resent = signal(false);
+  readonly email = this.auth.user()?.email ?? 'your email';
+
   async ngOnInit() {
+    await this.tryStart();
+  }
+
+  private async tryStart(): Promise<void> {
+    this.loading.set(true);
+    this.error.set('');
     try {
+      if (!(await this.auth.checkEmailVerified())) {
+        this.needsVerification.set(true);
+        return;
+      }
+      this.needsVerification.set(false);
       this.secret = await this.auth.startTotpEnrollment();
       this.secretKey.set(this.secret.secretKey);
       const email = this.auth.user()?.email ?? 'account';
@@ -50,6 +70,16 @@ export class TotpEnrollComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** "I've verified it" button — re-checks and, once verified, moves straight into enrollment. */
+  async recheckVerification(): Promise<void> {
+    await this.tryStart();
+  }
+
+  async resendVerificationEmail(): Promise<void> {
+    await this.auth.resendVerificationEmail();
+    this.resent.set(true);
   }
 
   async onConfirm() {

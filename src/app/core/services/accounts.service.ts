@@ -90,9 +90,13 @@ export class AccountsService {
     return collectionData(q) as Observable<Account[]>;
   }
 
-  /** Approve a pending request. Rules also enforce mfaEnrolled==true was already set and the rank/scope match — this is the client-side mirror of that. */
+  /**
+   * Approve a pending request. Rules enforce the rank/scope match; mfaEnrolled is NOT
+   * required here — an approver may knowingly approve a candidate who hasn't set up TOTP
+   * yet, accepting that risk for their own state/alliance (see firestore.rules' accounts
+   * update rule). The UI still shows TOTP status so this is an informed choice.
+   */
   async approve(target: Account, approverUid: string): Promise<void> {
-    if (!target.mfaEnrolled) throw new Error('Candidate has not enrolled TOTP yet');
     await updateDoc(this.ref(target.uid), {
       status: 'active',
       approvedBy: approverUid,
