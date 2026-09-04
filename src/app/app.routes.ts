@@ -18,6 +18,11 @@ export const routes: Routes = [
     canActivate: [signedInGuard],
   },
   {
+    path: 'profile',
+    loadComponent: () => import('./features/profile/profile').then((m) => m.ProfileComponent),
+    canActivate: [signedInGuard],
+  },
+  {
     path: 'dashboard',
     loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.DashboardComponent),
   },

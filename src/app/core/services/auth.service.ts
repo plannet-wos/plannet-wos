@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
-import { Firestore, doc, onSnapshot } from '@angular/fire/firestore';
+import { Firestore, doc, onSnapshot, setDoc } from '@angular/fire/firestore';
 import {
   User,
   createUserWithEmailAndPassword,
@@ -15,6 +15,10 @@ import {
   MultiFactorError,
   TotpMultiFactorGenerator,
   TotpSecret,
+  updatePassword,
+  verifyBeforeUpdateEmail,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 } from 'firebase/auth';
 import { Account } from '../models/account.model';
 import { Rank } from '../constants/roles';
@@ -187,6 +191,67 @@ export class AuthService {
     const user = this.mustUser();
     const assertion = TotpMultiFactorGenerator.assertionForEnrollment(secret, otp);
     await multiFactor(user).enroll(assertion, displayName);
+  }
+
+  /** Whether the signed-in user already has a TOTP factor enrolled — profile.ts uses this to offer "change" vs "set up" wording, and to unenroll the old one before enrolling a replacement (Firebase only allows one at a time per factor type here). */
+  hasTotpEnrolled(): boolean {
+    return multiFactor(this.mustUser()).enrolledFactors
+      .some((f) => f.factorId === TotpMultiFactorGenerator.FACTOR_ID);
+  }
+
+  /** Removes the currently-enrolled TOTP factor, if any — call before re-running startTotpEnrollment()/confirmTotpEnrollment() to replace it. A no-op if nothing's enrolled. */
+  async unenrollTotp(): Promise<void> {
+    const user = this.mustUser();
+    const factor = multiFactor(user).enrolledFactors.find((f) => f.factorId === TotpMultiFactorGenerator.FACTOR_ID);
+    if (factor) await multiFactor(user).unenroll(factor);
+  }
+
+  // --- profile: self-service email/password/TOTP changes for an already-active account ---
+
+  /**
+   * Firebase requires a recent sign-in for sensitive changes (email, password, MFA unenroll)
+   * — an attempt without one throws auth/requires-recent-login, not something we can avoid,
+   * only handle. profile.ts catches that specific error and calls this (prompting for the
+   * current password) before retrying the original action.
+   */
+  async reauthenticate(password: string): Promise<void> {
+    const user = this.mustUser();
+    if (!user.email) throw new Error('This account has no password to reauthenticate with');
+    await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, password));
+  }
+
+  /**
+   * Sends a confirmation link to the NEW address — user.email (and the ID token's email
+   * claim, which firestore.rules checks) only actually changes once that link is clicked,
+   * not immediately. See syncEmailAfterVerification() for the other half of this.
+   */
+  async changeEmailRequest(newEmail: string): Promise<void> {
+    await verifyBeforeUpdateEmail(this.mustUser(), newEmail);
+  }
+
+  /**
+   * Call after the candidate says they've clicked the confirmation link (possibly in another
+   * tab/device) — reloads the user AND force-refreshes the ID token (getIdToken(true); a
+   * plain reload() updates user.email but NOT the cached token's email claim, and
+   * firestore.rules' self-email-sync clause checks request.auth.token.email specifically, so
+   * without this the Firestore write below would be evaluated against the OLD claim and
+   * fail). Returns whether user.email actually changed and, if so, mirrors it onto
+   * accounts/{uid}.email so the rest of the app (which reads the Firestore doc, not the Auth
+   * user) sees the new address too. False just means "not confirmed yet", not an error — a
+   * candidate who hasn't clicked the link yet should see a friendly retry, not a failure.
+   */
+  async syncEmailAfterVerification(): Promise<boolean> {
+    const user = this.mustUser();
+    const before = this._account()?.email;
+    await reload(user);
+    await user.getIdToken(true);
+    if (!user.email || user.email === before) return false;
+    await setDoc(doc(this.firestore, `accounts/${user.uid}`), { email: user.email }, { merge: true });
+    return true;
+  }
+
+  async changePassword(newPassword: string): Promise<void> {
+    await updatePassword(this.mustUser(), newPassword);
   }
 
   private mustUser(): User {

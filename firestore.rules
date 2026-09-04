@@ -155,6 +155,16 @@ service cloud.firestore {
           && request.resource.data.rank in [1, 2, 3]
           && sameScope(resource.data)
           && sameScope(request.resource.data))
+        ||
+        // the account owner syncing their own `email` field with Firebase Auth's real email,
+        // after confirming a change via verifyBeforeUpdateEmail() — see AuthService.
+        // syncEmailAfterVerification(). Only `email`, and only to the value Firebase Auth's
+        // own ID token already claims for this uid (request.auth.token.email) — a fresh
+        // token only carries the new address once the confirmation link has actually been
+        // clicked, so this can't be used to claim an email that isn't really theirs.
+        (request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email'])
+          && request.resource.data.email == request.auth.token.email)
       );
 
       allow delete: if isActiveAccount() && myRank() == 0;

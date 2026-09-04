@@ -29,6 +29,10 @@
       @if (account()?.allianceId) {
         <div class="menu-alliance">Alliance: {{ account()?.allianceId }}</div>
       }
+      <button mat-menu-item (click)="goToProfile()">
+        <mat-icon>person</mat-icon>
+        Profile
+      </button>
       <button mat-menu-item (click)="logout()">
         <mat-icon>logout</mat-icon>
         Log out

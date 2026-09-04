@@ -17,7 +17,7 @@ import { AccountsService } from '../../core/services/accounts.service';
 import { StatesService } from '../../core/services/states.service';
 import { AllianceService } from '../../core/services/alliance.service';
 import { RANK, Rank, ROLE_LABEL } from '../../core/constants/roles';
-import { Account } from '../../core/models/account.model';
+import { Account, StateDoc } from '../../core/models/account.model';
 import { Alliance, allianceId as composeAllianceId } from '../../core/models/alliance.model';
 
 @Component({
@@ -41,7 +41,7 @@ import { Alliance, allianceId as composeAllianceId } from '../../core/models/all
 export class SuperadminComponent {
   private auth = inject(AuthService);
   private accounts = inject(AccountsService);
-  private states = inject(StatesService);
+  private statesService = inject(StatesService);
   private allianceService = inject(AllianceService);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
@@ -56,6 +56,24 @@ export class SuperadminComponent {
 
   newStateId = '';
   newStateName = '';
+
+  // --- state management: a list of registered states; clicking one drills into that state's
+  // admins (reusing the same active-accounts edit/revoke actions below, just filtered). ---
+  readonly states = toSignal(this.statesService.list$(), { initialValue: [] as StateDoc[] });
+  readonly stateColumns = ['id', 'name', 'admins', 'actions'];
+  selectedStateId = signal<string | null>(null);
+
+  selectState(stateId: string): void {
+    this.selectedStateId.set(this.selectedStateId() === stateId ? null : stateId);
+  }
+
+  // Plain method, not computed() — see signup.ts's needsAlliance doc comment. Reads
+  // selectedStateId, a signal, so it WOULD be safe as computed() too, but active() is also a
+  // signal and mixing "some signal deps, called from a template loop with a param" is simpler
+  // to reason about as a plain method here.
+  adminsForState(stateId: string): Account[] {
+    return this.active().filter((a) => a.stateId === stateId);
+  }
 
   // --- editing an active state_admin's rank/alliance (grant/revoke alliance leadership, or
   // reassign them to r5/r4 outright) — see AccountsService.updateRole()'s doc comment. Ranks
@@ -132,7 +150,7 @@ export class SuperadminComponent {
 
   async addState() {
     if (!this.newStateId) return;
-    await this.states.create(this.newStateId, this.newStateName || undefined);
+    await this.statesService.create(this.newStateId, this.newStateName || undefined);
     this.snackBar.open(`State ${this.newStateId} registered`, '', { duration: 2000 });
     this.newStateId = '';
     this.newStateName = '';

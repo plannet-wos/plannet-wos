@@ -149,6 +149,10 @@ export class DashboardComponent {
     this.router.navigate(['/superadmin']);
   }
 
+  goToProfile(): void {
+    this.router.navigate(['/profile']);
+  }
+
   logout(): void {
     this.auth.logout();
   }

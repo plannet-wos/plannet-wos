@@ -209,6 +209,24 @@ await check("superadmin reassigns an active state_admin to also lead an alliance
   }));
 });
 
+// --- accounts: self-service email sync (profile.ts, after verifyBeforeUpdateEmail) ---
+await check("account owner syncs their own email to what Firebase Auth's ID token already claims", async () => {
+  const db = testEnv.authenticatedContext('r5-eagle', { email: 'newr5eagle@x.com' }).firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r5-eagle'), { email: 'newr5eagle@x.com' }));
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r5-eagle'), { email: 'r5eagle@x.com' }, { merge: true }));
+});
+
+await check("account owner CANNOT set their email to something the ID token doesn't actually claim", async () => {
+  const db = testEnv.authenticatedContext('r5-eagle', { email: 'r5eagle@x.com' }).firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/r5-eagle'), { email: 'someone-elses@x.com' }));
+});
+
+await check('account owner cannot piggyback other field changes onto the self-email-sync clause', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle', { email: 'newr5eagle2@x.com' }).firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/r5-eagle'), { email: 'newr5eagle2@x.com', rank: 0 }));
+});
+
 await check('R5 cannot create/manage alliances (rank too low)', async () => {
   const db = testEnv.authenticatedContext('r5-eagle').firestore();
   await assertFails(setDoc(doc(db, 'alliances/3038-newone'), {

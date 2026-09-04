@@ -1,0 +1,125 @@
+<mat-toolbar class="toolbar">
+  <button mat-icon-button (click)="goBack()">
+    <mat-icon>arrow_back</mat-icon>
+  </button>
+  <span class="brand">Your profile</span>
+</mat-toolbar>
+
+<div class="console">
+
+  <mat-card class="table-card">
+    <mat-card-header>
+      <mat-card-title>Account</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <p><strong>Email:</strong> {{ user()?.email }}</p>
+      @if (account(); as acc) {
+        <p><strong>Role:</strong> {{ roleLabel[acc.role] }}</p>
+        @if (acc.stateId) {
+          <p><strong>State:</strong> {{ acc.stateId }}</p>
+        }
+        @if (acc.allianceId) {
+          <p><strong>Alliance:</strong> {{ acc.allianceId }}</p>
+        }
+        <p><strong>Status:</strong> {{ acc.status }}</p>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  @if (needsReauth()) {
+    <mat-card class="form-card">
+      <mat-card-header>
+        <mat-card-title>Confirm your password to continue</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <form (ngSubmit)="confirmReauth()" class="inline-form">
+          <mat-form-field appearance="outline">
+            <mat-label>Current password</mat-label>
+            <input matInput type="password" [(ngModel)]="reauthPassword" name="reauthPassword" autocomplete="current-password" />
+          </mat-form-field>
+          <button mat-flat-button color="primary" type="submit" [disabled]="!reauthPassword">Confirm</button>
+          <button mat-button type="button" (click)="cancelReauth()">Cancel</button>
+        </form>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <mat-card class="form-card">
+    <mat-card-header>
+      <mat-card-title>Change email</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (emailChangePending()) {
+        <p>Confirmation link sent to <strong>{{ newEmail }}</strong>. Open it, then:</p>
+        <button mat-flat-button color="primary" (click)="recheckEmailConfirmation()">I've confirmed it</button>
+      } @else {
+        <form (ngSubmit)="requestEmailChange()" class="inline-form">
+          <mat-form-field appearance="outline">
+            <mat-label>New email</mat-label>
+            <input matInput type="email" [(ngModel)]="newEmail" name="newEmail" autocomplete="email" />
+          </mat-form-field>
+          <button mat-flat-button color="primary" type="submit" [disabled]="!newEmail">Send confirmation link</button>
+        </form>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="form-card">
+    <mat-card-header>
+      <mat-card-title>Change password</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <form (ngSubmit)="changePassword()" class="inline-form">
+        <mat-form-field appearance="outline">
+          <mat-label>New password</mat-label>
+          <input matInput type="password" [(ngModel)]="newPassword" name="newPassword" autocomplete="new-password" />
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Confirm new password</mat-label>
+          <input matInput type="password" [(ngModel)]="confirmPassword" name="confirmPassword" autocomplete="new-password" />
+        </mat-form-field>
+        <button mat-flat-button color="primary" type="submit" [disabled]="!newPassword || !confirmPassword">Change password</button>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="table-card">
+    <mat-card-header>
+      <mat-card-title>Authenticator app</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (totpEnrolling()) {
+        <ol class="steps">
+          <li>
+            Don't have an authenticator app yet? Get
+            <a href="https://support.google.com/accounts/answer/1066447" target="_blank" rel="noopener">Google Authenticator</a>
+            (free, iOS &amp; Android) — or use any other TOTP app you already have.
+          </li>
+          <li>Scan this code with it.</li>
+        </ol>
+
+        @if (totpQrDataUrl()) {
+          <img [src]="totpQrDataUrl()" alt="TOTP QR code" class="qr" />
+        }
+
+        <p class="manual-hint">Can't scan? Enter this key manually:</p>
+        <code class="secret-key">{{ totpSecretKey() }}</code>
+
+        <mat-form-field appearance="outline" class="otp-field">
+          <mat-label>6-digit code</mat-label>
+          <input matInput [(ngModel)]="totpOtp" name="totpOtp"
+                 inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
+        </mat-form-field>
+
+        <button mat-flat-button color="primary" (click)="confirmTotpChange()" [disabled]="totpOtp.length !== 6">Confirm</button>
+        <button mat-button (click)="cancelTotpChange()">Cancel</button>
+      } @else {
+        <p>{{ hasTotp() ? 'An authenticator app is currently enrolled.' : 'No authenticator app enrolled yet — set one up for a much safer account.' }}</p>
+        <button mat-flat-button color="primary" (click)="startTotpChange()">
+          {{ hasTotp() ? 'Change authenticator' : 'Set up authenticator' }}
+        </button>
+      }
+    </mat-card-content>
+  </mat-card>
+
+</div>
