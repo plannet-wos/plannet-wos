@@ -7,6 +7,7 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteField,
   serverTimestamp,
   query,
   where,
@@ -101,6 +102,25 @@ export class AccountsService {
 
   async revoke(target: Account): Promise<void> {
     await updateDoc(this.ref(target.uid), { status: 'suspended' });
+  }
+
+  /**
+   * Reassign an already-active subordinate's rank and/or alliance — e.g. a state_admin
+   * moving one of their R5s to a different alliance, or demoting one to R4 of an alliance
+   * the state_admin themselves leads; a superadmin granting/revoking a state_admin's own
+   * alliance leadership, or reassigning them to R5/R4 outright. `newAllianceId` omitted
+   * clears any existing allianceId (e.g. a state_admin who no longer also leads an
+   * alliance); pass it whenever the new rank needs one (always for r5/r4, optionally for
+   * state_admin). Rules enforce the same manager/scope hierarchy as approve() — see
+   * firestore.rules' accounts update rule — on both the target's OLD and NEW rank/scope, so
+   * this can only move someone within the caller's own authority, never out of it.
+   */
+  async updateRole(target: Account, newRank: Rank, newAllianceId?: string): Promise<void> {
+    await updateDoc(this.ref(target.uid), {
+      role: ROLE_BY_RANK[newRank],
+      rank: newRank,
+      allianceId: newAllianceId !== undefined ? newAllianceId : deleteField(),
+    });
   }
 
   /** Rank that would approve/revoke `rank` — undefined for superadmin. Re-exported here so components don't need to import roles.ts directly for this one thing. */

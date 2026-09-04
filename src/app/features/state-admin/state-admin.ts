@@ -1,4 +1,4 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject, computed, signal } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { toSignal, toObservable } from '@angular/core/rxjs-interop';
@@ -10,14 +10,15 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/services/auth.service';
 import { AccountsService } from '../../core/services/accounts.service';
 import { AllianceService } from '../../core/services/alliance.service';
-import { RANK } from '../../core/constants/roles';
+import { RANK, Rank, ROLE_LABEL } from '../../core/constants/roles';
 import { Account } from '../../core/models/account.model';
-import { Alliance } from '../../core/models/alliance.model';
+import { Alliance, allianceId as composeAllianceId } from '../../core/models/alliance.model';
 
 @Component({
   selector: 'app-state-admin',
@@ -30,6 +31,7 @@ import { Alliance } from '../../core/models/alliance.model';
     MatTableModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MatSnackBarModule,
     MatTooltipModule,
   ],
@@ -92,9 +94,54 @@ export class StateAdminComponent {
   readonly allianceColumns = ['name', 'slug', 'actions'];
   readonly pendingColumns = ['email', 'scope', 'mfa', 'actions'];
   readonly activeColumns = ['email', 'scope', 'actions'];
+  readonly roleLabel = ROLE_LABEL;
 
   newAllianceSlug = '';
   newAllianceName = '';
+
+  // --- editing an active R5's alliance/rank — see AccountsService.updateRole()'s doc
+  // comment. Reassigning to a different alliance (staying R5) is always available; demoting
+  // to R4 is only offered when this state_admin themselves leads an alliance
+  // (leadsAlliance()) — rules require the state_admin's OWN allianceId to match the target's
+  // new allianceId for an R4 target, so R4 is only ever a valid destination pointing at that
+  // one alliance. ---
+  editingR5Uid = signal<string | null>(null);
+  editR5Rank: Rank = RANK.R5;
+  editR5AllianceSlug = '';
+
+  startEditR5(account: Account): void {
+    this.editingR5Uid.set(account.uid);
+    this.editR5Rank = account.rank;
+    this.editR5AllianceSlug = this.alliances().find((a) => a.id === account.allianceId)?.slug ?? '';
+  }
+
+  cancelEditR5(): void {
+    this.editingR5Uid.set(null);
+  }
+
+  // Plain methods, not computed() — see signup.ts's needsAlliance doc comment for why: these
+  // read editR5Rank, a plain (non-signal) ngModel-bound field.
+  editR5Ranks(): Rank[] {
+    return this.leadsAlliance() ? [RANK.R5, RANK.R4] : [RANK.R5];
+  }
+
+  editR5AllianceOptions(): Alliance[] {
+    if (this.editR5Rank === RANK.R4) {
+      return this.alliances().filter((a) => a.id === this.account()?.allianceId);
+    }
+    return this.alliances();
+  }
+
+  async saveEditR5(account: Account): Promise<void> {
+    if (!this.editR5AllianceSlug) return;
+    try {
+      await this.accounts.updateRole(account, this.editR5Rank, composeAllianceId(this.stateId, this.editR5AllianceSlug));
+      this.snackBar.open(`${account.email} updated`, '', { duration: 2500 });
+      this.editingR5Uid.set(null);
+    } catch (err) {
+      this.snackBar.open((err as Error).message, '', { duration: 3000 });
+    }
+  }
 
   async addAlliance() {
     if (!this.newAllianceSlug || !this.newAllianceName) return;

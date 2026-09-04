@@ -133,14 +133,23 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mfaEnrolled'])
           && request.resource.data.mfaEnrolled == true)
         ||
-        // an eligible approver/revoker acting on a strictly-lower-rank target in their scope.
-        // resource.data.mfaEnrolled (the value already stored, before this write) must
-        // already be true — an approver's own write never sets it, so this can't be
-        // satisfied by anything the approver supplies themselves.
+        // an eligible manager acting on a strictly-lower-rank target in their scope — covers
+        // approve/revoke (status flip) AND editing rank/stateId/allianceId on an already-
+        // active subordinate (e.g. a state_admin reassigning one of their R5s to a different
+        // alliance, or demoting one to R4 of an alliance the state_admin themselves leads —
+        // same "state_admin edits R5, R5 edits R4" hierarchy as approval, just not limited to
+        // the status field). Checked on BOTH old (resource.data) and new (request.resource.
+        // data) rank/scope, not just old — a manager can't use this to move someone TO a
+        // rank/scope outside their own authority, only within it on both ends. resource.data.
+        // mfaEnrolled (the value already stored, before this write) must already be true — a
+        // manager's own write never sets it, so this can't be satisfied by anything the
+        // manager supplies themselves.
         (isActiveAccount()
           && myRank() < resource.data.rank
           && myRank() < request.resource.data.rank
+          && request.resource.data.rank in [1, 2, 3]
           && sameScope(resource.data)
+          && sameScope(request.resource.data)
           && resource.data.mfaEnrolled == true)
       );
 

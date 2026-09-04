@@ -172,6 +172,43 @@ await check("state_admin who also leads an alliance still approves R5 requests s
   }));
 });
 
+// --- accounts: editing an active subordinate's rank/scope (not just status) ---
+await check('state_admin reassigns an active R5 to a DIFFERENT alliance in their state, staying R5', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r5-wolf'), {
+    role: 'r5', rank: 2, allianceId: '3038-eagle',
+  }));
+  // restore for later tests expecting it in 3038-wolf
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r5-wolf'), { allianceId: '3038-wolf' }, { merge: true }));
+});
+
+await check("state_admin cannot demote an R5 to R4 of an alliance they DON'T themselves lead", async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/r5-wolf'), {
+    role: 'r4', rank: 3, allianceId: '3038-wolf',
+  }));
+});
+
+await check('state_admin demotes an R5 to R4 of the ONE alliance they themselves lead', async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r5-temp'), {
+      uid: 'r5-temp', email: 'r5temp@x.com', role: 'r5', rank: 2, stateId: '3038',
+      allianceId: '3038-falcon', status: 'active', mfaEnrolled: true, requestedAt: 1,
+    }));
+  const db = testEnv.authenticatedContext('sa-falcon-leader').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r5-temp'), {
+    role: 'r4', rank: 3, allianceId: '3038-falcon',
+  }));
+});
+
+await check("superadmin reassigns an active state_admin to also lead an alliance (grants R5-equivalent for it)", async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/sa-9999'), {
+    role: 'state_admin', rank: 1, allianceId: '9999-hq',
+  }));
+});
+
 await check('R5 cannot create/manage alliances (rank too low)', async () => {
   const db = testEnv.authenticatedContext('r5-eagle').firestore();
   await assertFails(setDoc(doc(db, 'alliances/3038-newone'), {
