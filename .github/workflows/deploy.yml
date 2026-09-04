@@ -19,9 +19,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # v5, not v4: this is the Node runtime the ACTION ITSELF executes on, unrelated to the
+      # node-version: 22 below (that one picks the Node build/toolchain for npm ci/build). v4
+      # of both actions still targets the deprecated node20 actions-runtime — GitHub now force-
+      # runs those on node24 anyway with a deprecation warning on every run (confirmed live);
+      # v5 of each declares node24 natively, so the warning goes away for good instead of
+      # riding on a temporary compatibility shim.
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm

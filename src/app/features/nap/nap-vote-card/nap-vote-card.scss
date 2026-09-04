@@ -29,8 +29,11 @@ mat-radio-group {
   padding: 4px 8px;
   border-radius: 6px;
 
+  // A light, saturated tint over the dark theme's surface, not the dark-on-light overlay
+  // (rgba(46, 125, 50, 0.08)) this used to be — that read as basically invisible against the
+  // app's actual #121212 background. Same fix applies to .tally/.bar below.
   &.leading {
-    background: rgba(46, 125, 50, 0.08);
+    background: rgba(102, 187, 106, 0.22);
   }
 }
 
@@ -42,7 +45,7 @@ mat-radio-group {
   min-width: 120px;
   position: relative;
   height: 16px;
-  background: rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -51,7 +54,7 @@ mat-radio-group {
   position: absolute;
   inset: 0;
   width: 0;
-  background: rgba(21, 101, 192, 0.35);
+  background: rgba(100, 181, 246, 0.45);
   transition: width 0.3s ease;
 }
 
@@ -64,12 +67,14 @@ mat-radio-group {
 }
 
 .tally-summary {
-  color: rgba(0, 0, 0, 0.6);
+  // opacity on the inherited text color, not an rgba(0,0,0,…) overlay — see nap.scss's .intro
+  // comment for why (this app's global theme is dark).
+  opacity: 0.6;
   font-size: 0.85rem;
   margin: 4px 0 12px;
 }
 
 .hint {
-  color: rgba(0, 0, 0, 0.6);
+  opacity: 0.6;
   font-style: italic;
 }
