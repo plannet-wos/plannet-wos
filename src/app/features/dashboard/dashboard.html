@@ -123,6 +123,17 @@
           </mat-card-content>
         </mat-card>
       }
+      @if (canUseNap()) {
+        <mat-card class="app-tile" (click)="goToNap()">
+          <div class="tile-icon" style="background: #6a1b9a">
+            <mat-icon>how_to_vote</mat-icon>
+          </div>
+          <mat-card-content>
+            <h3>NAP</h3>
+            <p>Vote on discussed topics with your state's R4s, R5s and admins</p>
+          </mat-card-content>
+        </mat-card>
+      }
     </div>
   }
 </div>
