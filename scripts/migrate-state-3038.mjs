@@ -229,6 +229,18 @@ async function main() {
             update.tierByAlliance = rewriteAllianceKeyedMap(data.tierByAlliance, idMap);
           }
         }
+        // wiki_articles' rule requires status to be present and in ['published', 'draft']
+        // on the FULL resulting document, not just the fields this write touches — found via
+        // a real prod doc during the Phase-0 rehearsal that predates that field being added
+        // to the app and has never had one. Without this, this write (and so this article's
+        // whole allianceId rewrite) fails outright, leaving it permanently invisible under
+        // its new composite alliance ID once the app starts looking articles up by that
+        // instead of the old bare one. Defaulting to 'published' matches how an article with
+        // no status field has always behaved in practice — it was already publicly visible,
+        // nothing here was ever gating on this field being present until now.
+        if (collectionName === 'wiki_articles' && !data.status) {
+          update.status = 'published';
+        }
         batch.update(d.ref, update);
       }
       await batch.commit();

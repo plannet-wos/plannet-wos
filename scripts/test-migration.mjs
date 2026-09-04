@@ -62,6 +62,13 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'wiki_articles/w1'), {
     allianceId: 'eagle', title: 'Guide', content: 'x', status: 'published', createdAt: 1, updatedAt: 1,
   });
+  // A real prod article was found (Phase-0 rehearsal) with no status field at all, predating
+  // that field being added to the app — the wiki_articles rule requires it present+valid on
+  // the full resulting doc for ANY write, so this doc's allianceId rewrite must backfill it
+  // rather than fail outright.
+  await setDoc(doc(db, 'wiki_articles/w2'), {
+    allianceId: 'eagle', title: 'Old Guide', content: 'y', createdAt: 1, updatedAt: 1,
+  });
   // A second alliance already migrated (idempotency check) — must be left untouched.
   await setDoc(doc(db, 'alliances/3038-wolf'), { id: '3038-wolf', stateId: '3038', slug: 'wolf', name: 'Wolf', createdAt: 1 });
 
@@ -128,6 +135,14 @@ assert.deepEqual(player.data().tierByAlliance, { '3038-eagle': 'whale' },
 
 const task = await getDoc(doc(db, 'tasks/t1'));
 assert.equal(task.data().allianceId, '3038-eagle', 'task.allianceId should be rewritten');
+
+const article1 = await getDoc(doc(db, 'wiki_articles/w1'));
+assert.equal(article1.data().allianceId, '3038-eagle', 'wiki_articles.allianceId should be rewritten');
+assert.equal(article1.data().status, 'published', 'an article that already had status should keep it');
+
+const article2 = await getDoc(doc(db, 'wiki_articles/w2'));
+assert.equal(article2.data().allianceId, '3038-eagle', 'the statusless article should still get rewritten, not fail');
+assert.equal(article2.data().status, 'published', 'a missing status should be backfilled to published');
 
 const svsForm1 = await getDoc(doc(db, 'svs_forms/round1'));
 assert.equal(svsForm1.data().stateId, '3038', 'legacy svs_forms round should get stateId stamped');
