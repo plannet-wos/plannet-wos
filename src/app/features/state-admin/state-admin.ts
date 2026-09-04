@@ -178,6 +178,7 @@ export class StateAdminComponent {
   }
 
   async revoke(account: Account) {
+    if (!confirm(`Revoke ${account.email}? They'll be signed out immediately and lose access.`)) return;
     await this.accounts.revoke(account);
     this.snackBar.open(`${account.email} revoked`, '', { duration: 2500 });
   }

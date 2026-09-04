@@ -1,7 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { toSignal, toObservable } from '@angular/core/rxjs-interop';
+import { switchMap, of } from 'rxjs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -58,21 +59,29 @@ export class SuperadminComponent {
   newStateName = '';
 
   // --- state management: a list of registered states; clicking one drills into that state's
-  // admins (reusing the same active-accounts edit/revoke actions below, just filtered). ---
+  // FULL admin picture — state_admin AND every alliance's R5/R4 in it, not just state_admins
+  // (activeManagedBy$ above only ever fetches the next-rank-down, i.e. state_admin — an R5,
+  // let alone an R4, would never appear there no matter which state you're looking at). Uses
+  // AccountsService.activeForState$(), a direct stateId+status query relying on superadmin's
+  // blanket read access. ---
   readonly states = toSignal(this.statesService.list$(), { initialValue: [] as StateDoc[] });
-  readonly stateColumns = ['id', 'name', 'admins', 'actions'];
+  readonly stateListColumns = ['id', 'name', 'actions'];
+  readonly stateAdminColumns = ['email', 'role', 'scope', 'actions'];
   selectedStateId = signal<string | null>(null);
 
   selectState(stateId: string): void {
     this.selectedStateId.set(this.selectedStateId() === stateId ? null : stateId);
   }
 
-  // Plain method, not computed() — see signup.ts's needsAlliance doc comment. Reads
-  // selectedStateId, a signal, so it WOULD be safe as computed() too, but active() is also a
-  // signal and mixing "some signal deps, called from a template loop with a param" is simpler
-  // to reason about as a plain method here.
-  adminsForState(stateId: string): Account[] {
-    return this.active().filter((a) => a.stateId === stateId);
+  readonly stateAdmins = toSignal(
+    toObservable(this.selectedStateId).pipe(
+      switchMap((stateId) => (stateId ? this.accounts.activeForState$(stateId) : of([]))),
+    ),
+    { initialValue: [] as Account[] },
+  );
+
+  roleLabelFor(account: Account): string {
+    return this.roleLabel[account.rank === RANK.STATE_ADMIN ? 'state_admin' : account.rank === RANK.R5 ? 'r5' : 'r4'];
   }
 
   // --- editing an active state_admin's rank/alliance (grant/revoke alliance leadership, or
@@ -84,6 +93,13 @@ export class SuperadminComponent {
   editAllianceSlug = '';
   readonly editAlliances = signal<Alliance[]>([]);
   readonly editableRanks: Rank[] = [RANK.STATE_ADMIN, RANK.R5, RANK.R4];
+
+  /** The account editingUid points at — looked up fresh from whichever list it's actually showing in (the flat state_admin list, or the state-management drill-down, which can also hold r5/r4 rows now). Plain method: called from the template, not memoized. */
+  editingAccount(): Account | undefined {
+    const uid = this.editingUid();
+    if (!uid) return undefined;
+    return this.active().find((a) => a.uid === uid) ?? this.stateAdmins().find((a) => a.uid === uid);
+  }
 
   startEdit(account: Account): void {
     this.editingUid.set(account.uid);
@@ -144,6 +160,7 @@ export class SuperadminComponent {
   }
 
   async revoke(account: Account) {
+    if (!confirm(`Revoke ${account.email}? They'll be signed out immediately and lose access.`)) return;
     await this.accounts.revoke(account);
     this.snackBar.open(`${account.email} revoked`, '', { duration: 2500 });
   }

@@ -16,7 +16,7 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 
 const rules = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8');
 
@@ -225,6 +225,34 @@ await check("account owner CANNOT set their email to something the ID token does
 await check('account owner cannot piggyback other field changes onto the self-email-sync clause', async () => {
   const db = testEnv.authenticatedContext('r5-eagle', { email: 'newr5eagle2@x.com' }).firestore();
   await assertFails(updateDoc(doc(db, 'accounts/r5-eagle'), { email: 'newr5eagle2@x.com', rank: 0 }));
+});
+
+// --- accounts: self-service "I also lead this alliance" tag (profile.ts) ---
+await check('superadmin self-tags as also leading any alliance — purely a display tag', async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/super1'), { allianceId: '9999-hq' }));
+});
+
+await check('superadmin clears their own alliance tag', async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/super1'), { allianceId: deleteField() }));
+});
+
+await check('state_admin self-tags as leading an alliance in their OWN state', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/sa-3038'), { allianceId: '3038-eagle' }));
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/sa-3038'), { allianceId: deleteField() }, { merge: true }));
+});
+
+await check("state_admin CANNOT self-tag as leading an alliance in a DIFFERENT state", async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/sa-3038'), { allianceId: '9999-hq' }));
+});
+
+await check('R5 cannot self-edit their own allianceId at all — theirs is a real permission scope, not a display tag', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/r5-eagle'), { allianceId: '3038-wolf' }));
 });
 
 await check('R5 cannot create/manage alliances (rank too low)', async () => {

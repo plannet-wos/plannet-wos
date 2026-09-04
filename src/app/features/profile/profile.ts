@@ -11,7 +11,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AuthService } from '../../core/services/auth.service';
-import { ROLE_LABEL } from '../../core/constants/roles';
+import { AccountsService } from '../../core/services/accounts.service';
+import { RANK, ROLE_LABEL } from '../../core/constants/roles';
 
 /**
  * Self-service account management — any signed-in user (any rank, even still-pending) can
@@ -38,6 +39,7 @@ import { ROLE_LABEL } from '../../core/constants/roles';
 })
 export class ProfileComponent {
   private auth = inject(AuthService);
+  private accounts = inject(AccountsService);
   private snackBar = inject(MatSnackBar);
   private router = inject(Router);
 
@@ -131,6 +133,39 @@ export class ProfileComponent {
       this.confirmPassword = '';
       this.snackBar.open('Password changed', '', { duration: 2500 });
     });
+  }
+
+  // --- "I also personally lead this alliance" self-tag — a superadmin or state_admin's
+  // own version of the allianceId field a manager can already set for them (see
+  // AccountsService.updateRole()'s doc comment). Superadmin: any alliance, purely a display
+  // tag. state_admin: only one in their own state — enforced by firestore.rules, and this
+  // plain text field trusts that server-side check rather than pre-validating client-side
+  // (keeping this simple rather than building a cascading state+alliance picker for what's
+  // a "nice to have" identification tag, not a permission grant). ---
+  tagAllianceId = '';
+
+  canTagAlliance(): boolean {
+    const rank = this.account()?.rank;
+    return rank === RANK.SUPERADMIN || rank === RANK.STATE_ADMIN;
+  }
+
+  async saveAllianceTag(): Promise<void> {
+    const uid = this.user()?.uid;
+    if (!uid || !this.tagAllianceId) return;
+    try {
+      await this.accounts.setOwnAllianceTag(uid, this.tagAllianceId);
+      this.tagAllianceId = '';
+      this.snackBar.open('Updated', '', { duration: 2000 });
+    } catch (err) {
+      this.snackBar.open((err as Error).message ?? "Could not update — for a state_admin this has to be an alliance in your own state", '', { duration: 4000 });
+    }
+  }
+
+  async clearAllianceTag(): Promise<void> {
+    const uid = this.user()?.uid;
+    if (!uid) return;
+    await this.accounts.setOwnAllianceTag(uid);
+    this.snackBar.open('Cleared', '', { duration: 2000 });
   }
 
   // --- TOTP: set up (none enrolled) or change (replace the existing one) ---

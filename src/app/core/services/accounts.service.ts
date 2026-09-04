@@ -91,6 +91,34 @@ export class AccountsService {
   }
 
   /**
+   * All active accounts (any rank) scoped to one state — used by superadmin's state-
+   * management drill-down, which needs the full picture (the state_admin AND every alliance's
+   * R5/R4 in that state), not just the next-rank-down view pendingForApprover$/
+   * activeManagedBy$ give. Relies on superadmin's blanket read access (sameScope() returns
+   * true for rank 0 against any target) — not usable by a state_admin/R5 caller, who can only
+   * read strictly-lower ranks in their own scope.
+   */
+  activeForState$(stateId: string): Observable<Account[]> {
+    const q = query(
+      collection(this.firestore, 'accounts'),
+      where('stateId', '==', stateId),
+      where('status', '==', 'active'),
+    );
+    return collectionData(q) as Observable<Account[]>;
+  }
+
+  /**
+   * Self-service "I also personally lead this alliance" tag — profile.ts's version of the
+   * allianceId field a manager can already set via updateRole(). Omitting allianceId clears
+   * the tag. See firestore.rules' accounts update rule for the actual constraints (superadmin:
+   * any alliance, purely a display tag; state_admin: only one in their own state; not
+   * available at all to r5/r4, whose allianceId is their real permission-defining scope).
+   */
+  async setOwnAllianceTag(uid: string, allianceId?: string): Promise<void> {
+    await updateDoc(this.ref(uid), { allianceId: allianceId !== undefined ? allianceId : deleteField() });
+  }
+
+  /**
    * Approve a pending request. Rules enforce the rank/scope match; mfaEnrolled is NOT
    * required here — an approver may knowingly approve a candidate who hasn't set up TOTP
    * yet, accepting that risk for their own state/alliance (see firestore.rules' accounts

@@ -118,13 +118,34 @@ export class AuthService {
 
     if (user) {
       this.unsubAccount = onSnapshot(doc(this.firestore, `accounts/${user.uid}`), (snap) => {
-        this._account.set(snap.exists() ? (snap.data() as Account) : null);
+        const account = snap.exists() ? (snap.data() as Account) : null;
+        const isActiveNow = account?.status === 'active';
+        // Force a real sign-out the moment an ACTIVE session becomes not-active (revoked,
+        // suspended, or the account doc itself vanished) — not just a route guard catching it
+        // on the next navigation. A guard only re-checks isActive() when the user navigates;
+        // someone sitting on an already-open page (e.g. an admin dashboard) would otherwise
+        // keep whatever that page lets them do, indefinitely, until they happen to move.
+        // Deliberately keyed off a real active->inactive TRANSITION (this.wasActive), not
+        // "isActiveNow is false" on its own — a still-pending candidate (never active yet)
+        // must stay signed in to finish TOTP enrollment; signing them out here would break
+        // that flow on their very first account-doc snapshot.
+        if (this.wasActive && !isActiveNow) {
+          this._account.set(account);
+          this.settledResolve();
+          signOut(this.auth);
+          return;
+        }
+        this.wasActive = isActiveNow;
+        this._account.set(account);
         this.settledResolve();
       });
     } else {
+      this.wasActive = false;
       this.settledResolve();
     }
   }
+
+  private wasActive = false;
 
   /** Creates the Firebase Auth user and sends a verification email. Does not touch Firestore — see AccountsService for the pending account doc. */
   async signUp(email: string, password: string): Promise<User> {

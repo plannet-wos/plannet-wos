@@ -61,7 +61,12 @@ service cloud.firestore {
     function sameScope(target) {
       return myRank() == 0
         || (myRank() == 1 && target.rank == 2 && myAccount().stateId == target.stateId)
-        || (myRank() == 1 && target.rank == 3 && myAccount().allianceId == target.allianceId)
+        // Also requires stateId match, not just allianceId — belt-and-suspenders once
+        // allianceId became a self-editable "also leads" tag (see the accounts update rule
+        // below): a state_admin's own allianceId field alone should never be enough to reach
+        // into a DIFFERENT state's alliance, even if that field were ever wrong/stale.
+        || (myRank() == 1 && target.rank == 3 && myAccount().allianceId == target.allianceId
+              && myAccount().stateId == target.stateId)
         || (myRank() == 2 && myAccount().allianceId == target.allianceId);
     }
 
@@ -165,6 +170,26 @@ service cloud.firestore {
         (request.auth.uid == uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email'])
           && request.resource.data.email == request.auth.token.email)
+        ||
+        // superadmin/state_admin self-tagging "I also personally lead this alliance" —
+        // profile.ts's self-service version of the same allianceId field a manager can
+        // already set for them (see the manager-edit branch above); purely a display tag for
+        // superadmin (who already has blanket access regardless of allianceId), and the same
+        // "also leads" meaning state_admin already had via the manager-edit path, just
+        // self-service instead of requiring a superior to set it. Deliberately NOT open to
+        // r5/r4, whose allianceId IS their real, permission-defining scope — self-editing
+        // that would let them reassign their own operational-tools access to a different
+        // alliance, which is a manager decision, not theirs to make. state_admin can only
+        // point this at an alliance in their OWN state (checked via the id's "{stateId}-…"
+        // prefix, same composition alliance.model.ts's allianceId() uses) — clearing it
+        // (removing the field entirely) is always allowed, no state check needed for that.
+        (request.auth.uid == uid && isActiveAccount()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allianceId'])
+          && (myRank() == 0 || (
+                myRank() == 1
+                && (!('allianceId' in request.resource.data)
+                    || request.resource.data.allianceId.split('-')[0] == myAccount().stateId)
+              )))
       );
 
       allow delete: if isActiveAccount() && myRank() == 0;
