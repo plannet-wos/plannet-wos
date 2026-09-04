@@ -45,6 +45,9 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
   });
   // Legacy (pre-rollout) data: bare alliance ID, no stateId.
   await setDoc(doc(db, 'alliances/eagle'), { id: 'eagle', name: 'Eagle', createdAt: 1 });
+  // Legacy cross-alliance-event shell (the real s38 in prod today) — isCrossAlliance should
+  // convert to type: 'state_event', and the stale field itself should not survive.
+  await setDoc(doc(db, 'alliances/s38'), { id: 's38', name: 'S38', createdAt: 1, isCrossAlliance: true });
   await setDoc(doc(db, 'players/p1'), {
     id: 'p1', allianceId: 'eagle', inGameName: 'Alice',
     // Cross-alliance event fields (see player.model.ts) — keyed by alliance ID, not just
@@ -111,6 +114,10 @@ const newAlliance = await getDoc(doc(db, 'alliances/3038-eagle'));
 assert.equal(newAlliance.exists(), true, 'alliances/3038-eagle should exist');
 assert.equal(newAlliance.data().stateId, '3038');
 assert.equal(newAlliance.data().slug, 'eagle');
+
+const newS38 = await getDoc(doc(db, 'alliances/3038-s38'));
+assert.equal(newS38.data().type, 'state_event', 'isCrossAlliance should convert to type: state_event');
+assert.equal('isCrossAlliance' in newS38.data(), false, 'the stale isCrossAlliance field should not survive');
 
 const player = await getDoc(doc(db, 'players/p1'));
 assert.equal(player.data().allianceId, '3038-eagle', 'player.allianceId should be rewritten');

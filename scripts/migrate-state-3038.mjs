@@ -7,7 +7,8 @@
  * What it does, per the plan's "Migration of existing data and accounts" section:
  *   1. Creates states/3038.
  *   2. For every alliances/{oldId} doc that doesn't already have a stateId: creates
- *      alliances/3038-{oldId} with stateId/slug added, deletes the old doc.
+ *      alliances/3038-{oldId} with stateId/slug added (and isCrossAlliance converted to
+ *      type: 'state_event', see below), deletes the old doc.
  *   3. Rewrites the `allianceId` field on every players/tasks/assignments/wiki_articles/
  *      article_feedback/admin_feedback doc that referenced an old bare alliance ID, to the
  *      new "3038-{oldId}" composite.
@@ -169,11 +170,17 @@ async function main() {
       console.log(`Would migrate alliances/${oldId} -> alliances/${newId}`);
       continue;
     }
+    // isCrossAlliance -> type: 'state_event' (foundry-planner's state-event redesign — see
+    // its alliance.model.ts). No app code reads isCrossAlliance anymore; carrying it forward
+    // unconverted would silently turn a real, currently-used cross-alliance-event shell (s38
+    // in prod today) into an ordinary alliance the moment the new code deploys.
+    const { isCrossAlliance, ...rest } = d.data();
     await setDoc(doc(db, `alliances/${newId}`), {
-      ...d.data(),
+      ...rest,
       id: newId,
       stateId: STATE_ID,
       slug: oldId,
+      ...(isCrossAlliance ? { type: 'state_event' } : {}),
     });
     await deleteDoc(doc(db, `alliances/${oldId}`));
     console.log(`alliances/${oldId} -> alliances/${newId}`);
