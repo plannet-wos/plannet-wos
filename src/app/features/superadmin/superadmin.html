@@ -40,36 +40,38 @@
       @if (pending().length === 0) {
         <p class="empty">Nothing pending</p>
       }
-      <table mat-table [dataSource]="pending()" class="data-table" [class.hidden]="pending().length === 0">
-        <ng-container matColumnDef="email">
-          <th mat-header-cell *matHeaderCellDef>Email</th>
-          <td mat-cell *matCellDef="let row">{{ row.email }}</td>
-        </ng-container>
-        <ng-container matColumnDef="stateId">
-          <th mat-header-cell *matHeaderCellDef>State</th>
-          <td mat-cell *matCellDef="let row">{{ row.stateId }}</td>
-        </ng-container>
-        <ng-container matColumnDef="mfa">
-          <th mat-header-cell *matHeaderCellDef>TOTP</th>
-          <td mat-cell *matCellDef="let row">
-            @if (row.mfaEnrolled) {
-              <mat-icon color="primary">check_circle</mat-icon>
-            } @else {
-              <mat-icon color="warn" matTooltip="Not enrolled yet — approving now means this account has no TOTP protection">warning</mat-icon>
-            }
-          </td>
-        </ng-container>
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef></th>
-          <td mat-cell *matCellDef="let row">
-            <button mat-flat-button color="primary" (click)="approve(row)">
-              Approve
-            </button>
-          </td>
-        </ng-container>
-        <tr mat-header-row *matHeaderRowDef="pendingColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: pendingColumns"></tr>
-      </table>
+      <div class="table-scroll">
+        <table mat-table [dataSource]="pending()" class="data-table" [class.hidden]="pending().length === 0">
+          <ng-container matColumnDef="email">
+            <th mat-header-cell *matHeaderCellDef>Email</th>
+            <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+          </ng-container>
+          <ng-container matColumnDef="stateId">
+            <th mat-header-cell *matHeaderCellDef>State</th>
+            <td mat-cell *matCellDef="let row">{{ row.stateId }}</td>
+          </ng-container>
+          <ng-container matColumnDef="mfa">
+            <th mat-header-cell *matHeaderCellDef>TOTP</th>
+            <td mat-cell *matCellDef="let row">
+              @if (row.mfaEnrolled) {
+                <mat-icon color="primary">check_circle</mat-icon>
+              } @else {
+                <mat-icon color="warn" matTooltip="Not enrolled yet — approving now means this account has no TOTP protection">warning</mat-icon>
+              }
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let row">
+              <button mat-flat-button color="primary" (click)="approve(row)">
+                Approve
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="pendingColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: pendingColumns"></tr>
+        </table>
+      </div>
     </mat-card-content>
   </mat-card>
 
@@ -81,26 +83,28 @@
       @if (states().length === 0) {
         <p class="empty">No states registered yet</p>
       }
-      <table mat-table [dataSource]="states()" class="data-table" [class.hidden]="states().length === 0">
-        <ng-container matColumnDef="id">
-          <th mat-header-cell *matHeaderCellDef>State</th>
-          <td mat-cell *matCellDef="let row">{{ row.id }}</td>
-        </ng-container>
-        <ng-container matColumnDef="name">
-          <th mat-header-cell *matHeaderCellDef>Name</th>
-          <td mat-cell *matCellDef="let row">{{ row.name }}</td>
-        </ng-container>
-        <ng-container matColumnDef="actions">
-          <th mat-header-cell *matHeaderCellDef></th>
-          <td mat-cell *matCellDef="let row">
-            <button mat-button (click)="selectState(row.id)">
-              {{ selectedStateId() === row.id ? 'Hide' : 'View admins' }}
-            </button>
-          </td>
-        </ng-container>
-        <tr mat-header-row *matHeaderRowDef="stateListColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: stateListColumns"></tr>
-      </table>
+      <div class="table-scroll">
+        <table mat-table [dataSource]="states()" class="data-table" [class.hidden]="states().length === 0">
+          <ng-container matColumnDef="id">
+            <th mat-header-cell *matHeaderCellDef>State</th>
+            <td mat-cell *matCellDef="let row">{{ row.id }}</td>
+          </ng-container>
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Name</th>
+            <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+          </ng-container>
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let row">
+              <button mat-button (click)="selectState(row.id)">
+                {{ selectedStateId() === row.id ? 'Hide' : 'View admins' }}
+              </button>
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="stateListColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: stateListColumns"></tr>
+        </table>
+      </div>
     </mat-card-content>
   </mat-card>
 
@@ -113,33 +117,35 @@
         @if (stateAdmins().length === 0) {
           <p class="empty">No active admins for this state yet</p>
         }
-        <table mat-table [dataSource]="stateAdmins()" class="data-table" [class.hidden]="stateAdmins().length === 0">
-          <ng-container matColumnDef="email">
-            <th mat-header-cell *matHeaderCellDef>Email</th>
-            <td mat-cell *matCellDef="let row">{{ row.email }}</td>
-          </ng-container>
-          <ng-container matColumnDef="role">
-            <th mat-header-cell *matHeaderCellDef>Role</th>
-            <td mat-cell *matCellDef="let row">{{ roleLabelFor(row) }}</td>
-          </ng-container>
-          <ng-container matColumnDef="scope">
-            <th mat-header-cell *matHeaderCellDef>Scope</th>
-            <td mat-cell *matCellDef="let row">{{ row.allianceId ? row.allianceId : 'state-wide only' }}</td>
-          </ng-container>
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef></th>
-            <td mat-cell *matCellDef="let row">
-              <button mat-icon-button (click)="startEdit(row)" matTooltip="Edit role/alliance">
-                <mat-icon>edit</mat-icon>
-              </button>
-              <button mat-icon-button color="warn" (click)="revoke(row)">
-                <mat-icon>block</mat-icon>
-              </button>
-            </td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="stateAdminColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: stateAdminColumns"></tr>
-        </table>
+        <div class="table-scroll">
+          <table mat-table [dataSource]="stateAdmins()" class="data-table" [class.hidden]="stateAdmins().length === 0">
+            <ng-container matColumnDef="email">
+              <th mat-header-cell *matHeaderCellDef>Email</th>
+              <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+            </ng-container>
+            <ng-container matColumnDef="role">
+              <th mat-header-cell *matHeaderCellDef>Role</th>
+              <td mat-cell *matCellDef="let row">{{ roleLabelFor(row) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="scope">
+              <th mat-header-cell *matHeaderCellDef>Scope</th>
+              <td mat-cell *matCellDef="let row">{{ row.allianceId ? row.allianceId : 'state-wide only' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let row">
+                <button mat-icon-button (click)="startEdit(row)" matTooltip="Edit role/alliance">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button mat-icon-button color="warn" (click)="revoke(row)">
+                  <mat-icon>block</mat-icon>
+                </button>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="stateAdminColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: stateAdminColumns"></tr>
+          </table>
+        </div>
       </mat-card-content>
     </mat-card>
   }

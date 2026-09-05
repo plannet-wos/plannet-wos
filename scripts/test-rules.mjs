@@ -256,6 +256,42 @@ await check('superadmin lists every active account in a state (state, r5, r4) on
   assert.ok(snap.docs.length > 0, 'expected at least one active 3038 account back');
 });
 
+// --- accounts: state_admin's R5 queue (state-admin.ts's "Pending R5 requests"/"Active R5s") ---
+// Same "Null value error" failure class as activeForState$ above, hit by a DIFFERENT caller:
+// pendingForApprover$/activeManagedBy$ infer scope from the TARGET rank's own natural scope
+// (SCOPE_BY_RANK[R5] === 'alliance'), which is right for "R5 approves R4" but wrong for
+// "state_admin approves R5" — a state_admin's reach over R5s is state-wide, and the approver
+// object passed has no allianceId at all, so neither clause used to get added: the query ended
+// up with only a rank filter, and a state_admin caller's sameScope() branch needs stateId bound
+// to reason about it. Confirmed live: every state_admin's R5 queue silently showed empty.
+// pendingR5ForState$/activeR5ForState$ fix this the same way pendingR4ForState$ already did.
+await check("state_admin's R5 queue query WITHOUT a stateId filter is denied outright (the shape pendingForApprover$({rank: STATE_ADMIN, stateId}) used to produce)", async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(getDocs(query(
+    collection(db, 'accounts'),
+    where('rank', '==', 2),
+    where('status', '==', 'pending'),
+  )));
+});
+
+await check('state_admin lists pending/active R5s once the query is scoped by stateId — the actual pendingR5ForState$/activeR5ForState$ shape', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  const pendingSnap = await assertSucceeds(getDocs(query(
+    collection(db, 'accounts'),
+    where('stateId', '==', '3038'),
+    where('rank', '==', 2),
+    where('status', '==', 'pending'),
+  )));
+  assert.ok(pendingSnap.docs.length > 0, 'expected at least one pending R5 in state 3038');
+  const activeSnap = await assertSucceeds(getDocs(query(
+    collection(db, 'accounts'),
+    where('stateId', '==', '3038'),
+    where('rank', '==', 2),
+    where('status', '==', 'active'),
+  )));
+  assert.ok(activeSnap.docs.length > 0, 'expected at least one active R5 in state 3038');
+});
+
 // --- accounts: self-service email sync (profile.ts, after verifyBeforeUpdateEmail) ---
 await check("account owner syncs their own email to what Firebase Auth's ID token already claims", async () => {
   const db = testEnv.authenticatedContext('r5-eagle', { email: 'newr5eagle@x.com' }).firestore();

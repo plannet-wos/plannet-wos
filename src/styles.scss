@@ -19,4 +19,53 @@ html, body {
   font-family: Roboto, 'Helvetica Neue', sans-serif;
   background: #121212;
   color: #e0e0e0;
+  // Deliberately NOT setting overflow-x: hidden here: with height:100% already on both html
+  // and body, setting only ONE overflow axis on an element makes the browser compute the OTHER
+  // (unset) axis as 'auto' too (the CSS Overflow spec's visible+non-visible interaction) —
+  // which silently turns body into its OWN scroll container instead of the page scrolling
+  // normally at the viewport/documentElement level. Confirmed live: it broke window scrolling
+  // and Playwright's fullPage capture height (both read documentElement.scrollHeight, which
+  // then reports just one viewport tall no matter how much content body actually holds). Not
+  // needed anyway — the two real sources of horizontal overflow (an untruncated toolbar title,
+  // and wide mat-tables) are fixed at the source below/in each table's .table-scroll wrapper.
+}
+
+// Every "cockpit" page (dashboard, state-admin, superadmin, nap, nap-archive) shares the same
+// toolbar shape: a `.brand` title, a `.spacer`, then 1-4 action buttons/icons. On a phone-width
+// screen those buttons alone can already fill the row, and the title — a flex item with no
+// min-width set — hits the classic flexbox trap: browsers never shrink a flex item below its
+// own content width unless told to, so instead of wrapping or shrinking it OVERLAPS whatever's
+// next to it. Fix: let the title actually shrink and truncate; keep the buttons at their natural
+// size so they're never the thing that gets squeezed.
+.toolbar {
+  .brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  a, button {
+    flex-shrink: 0;
+  }
+}
+
+// Even with the title truncating, a phone-width row still can't fit an icon AND a text label
+// for every toolbar action — each template wraps its button/link text in this span so it can
+// disappear on narrow screens, leaving just the icon (which is what actually reclaims enough
+// width to stop the overlap, not just relocate it).
+@media (max-width: 600px) {
+  .toolbar .btn-label {
+    display: none;
+  }
+}
+
+// mat-table sizes its columns to content and doesn't wrap — with several columns (email,
+// scope, TOTP, actions, …) it's routinely wider than a phone screen. Without this, that excess
+// width forced the WHOLE PAGE to scroll sideways (rows "escaping" past the right edge with no
+// way to reach them); wrapping the table in this scrolls just the table itself, in place.
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }

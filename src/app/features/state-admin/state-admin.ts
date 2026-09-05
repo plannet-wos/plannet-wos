@@ -58,14 +58,8 @@ export class StateAdminComponent {
 
   // --- state_admin view: alliances + R5 queue ---
   readonly alliances = toSignal(this.allianceService.listForState$(this.stateId), { initialValue: [] as Alliance[] });
-  readonly pendingR5 = toSignal(
-    this.accounts.pendingForApprover$({ rank: RANK.STATE_ADMIN, stateId: this.stateId }),
-    { initialValue: [] as Account[] },
-  );
-  readonly activeR5 = toSignal(
-    this.accounts.activeManagedBy$({ rank: RANK.STATE_ADMIN, stateId: this.stateId }),
-    { initialValue: [] as Account[] },
-  );
+  readonly pendingR5 = toSignal(this.accounts.pendingR5ForState$(this.stateId), { initialValue: [] as Account[] });
+  readonly activeR5 = toSignal(this.accounts.activeR5ForState$(this.stateId), { initialValue: [] as Account[] });
 
   // --- R4 queue: state-wide (every alliance in this state) for state_admin/superadmin — see
   // firestore.rules' sameScope() — since they can now approve/revoke any alliance's R4s, not
