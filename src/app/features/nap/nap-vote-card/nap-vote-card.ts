@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -29,6 +30,7 @@ import { NapBallot, NapVote } from '../../../core/models/nap-vote.model';
   selector: 'app-nap-vote-card',
   imports: [
     FormsModule,
+    NgTemplateOutlet,
     MatButtonModule,
     MatCardModule,
     MatCheckboxModule,
@@ -128,6 +130,10 @@ export class NapVoteCardComponent {
   readonly selected = signal<string[]>([]);
   readonly submitting = signal(false);
 
+  // Which option(s) currently have their "who voted for this" panel open — click the tally bar
+  // to toggle, per option, rather than one flat list dumped below the whole question.
+  readonly expandedOptions = signal<ReadonlySet<string>>(new Set());
+
   constructor() {
     const intervalId = setInterval(() => this.nowMs.set(Date.now()), 30_000);
     this.destroyRef.onDestroy(() => clearInterval(intervalId));
@@ -183,14 +189,26 @@ export class NapVoteCardComponent {
     return this.vote().options.find((o) => o.id === optionId)?.text ?? optionId;
   }
 
-  /** For an allianceRows() row's optionIds — the alliance's own pick(s), joined for display. */
-  pickLabel(row: AllianceBreakdownRow): string {
-    return row.optionIds.length > 0 ? row.optionIds.map((id) => this.optionText(id)).join(', ') : 'No majority yet';
+  isExpanded(optionId: string): boolean {
+    return this.expandedOptions().has(optionId);
   }
 
-  /** For one ballot in the individual-votes list. */
-  ballotLabel(ballot: NapBallot): string {
-    return ballot.selections.map((id) => this.optionText(id)).join(', ');
+  /** Click the tally bar for an option to reveal who voted for it, in place — not a separate flat list below the whole question. */
+  toggleExpand(optionId: string): void {
+    const next = new Set(this.expandedOptions());
+    if (next.has(optionId)) next.delete(optionId);
+    else next.add(optionId);
+    this.expandedOptions.set(next);
+  }
+
+  /** Alliances whose own pick (majority, or tie broken by their R5 — see allianceBreakdown()) included this option. Public — names the alliance, never an individual voter. */
+  alliancesFor(optionId: string): AllianceBreakdownRow[] {
+    return this.allianceRows().filter((row) => row.optionIds.includes(optionId));
+  }
+
+  /** Every individual ballot that picked this option — gated by canSeeIndividualVotes() in the template, never rendered to the public. */
+  votersFor(optionId: string): NapBallot[] {
+    return this.ballots().filter((ballot) => ballot.selections.includes(optionId));
   }
 
   async submit(): Promise<void> {
