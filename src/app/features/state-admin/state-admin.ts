@@ -19,11 +19,14 @@ import { AllianceService } from '../../core/services/alliance.service';
 import { RANK, Rank, ROLE_LABEL } from '../../core/constants/roles';
 import { Account } from '../../core/models/account.model';
 import { Alliance, allianceId as composeAllianceId } from '../../core/models/alliance.model';
+import { displayName } from '../../core/utils/display-name.util';
+import { DisplayNamePipe } from '../../shared/display-name.pipe';
 
 @Component({
   selector: 'app-state-admin',
   imports: [
     FormsModule,
+    DisplayNamePipe,
     MatToolbarModule,
     MatCardModule,
     MatButtonModule,
@@ -134,7 +137,7 @@ export class StateAdminComponent {
     if (!this.editR5AllianceSlug) return;
     try {
       await this.accounts.updateRole(account, this.editR5Rank, composeAllianceId(this.stateId, this.editR5AllianceSlug));
-      this.snackBar.open(`${account.email} updated`, '', { duration: 2500 });
+      this.snackBar.open(`${displayName(account)} updated`, '', { duration: 2500 });
       this.editingR5Uid.set(null);
     } catch (err) {
       this.snackBar.open((err as Error).message, '', { duration: 3000 });
@@ -164,21 +167,21 @@ export class StateAdminComponent {
     // Approving without TOTP is allowed (see AccountsService.approve()'s doc comment) but
     // it's the approver's call to make knowingly, not a silent default — a plain confirm()
     // here is enough friction for that without building a whole dialog for it.
-    if (!account.mfaEnrolled && !confirm(`${account.email} hasn't set up an authenticator yet. Approve anyway?`)) {
+    if (!account.mfaEnrolled && !confirm(`${displayName(account)} hasn't set up an authenticator yet. Approve anyway?`)) {
       return;
     }
     try {
       await this.accounts.approve(account, approverUid);
-      this.snackBar.open(`${account.email} approved`, '', { duration: 2500 });
+      this.snackBar.open(`${displayName(account)} approved`, '', { duration: 2500 });
     } catch (err) {
       this.snackBar.open((err as Error).message, '', { duration: 3000 });
     }
   }
 
   async revoke(account: Account) {
-    if (!confirm(`Revoke ${account.email}? They'll be signed out immediately and lose access.`)) return;
+    if (!confirm(`Revoke ${displayName(account)}? They'll be signed out immediately and lose access.`)) return;
     await this.accounts.revoke(account);
-    this.snackBar.open(`${account.email} revoked`, '', { duration: 2500 });
+    this.snackBar.open(`${displayName(account)} revoked`, '', { duration: 2500 });
   }
 
   goBack() {

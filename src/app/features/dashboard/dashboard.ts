@@ -13,6 +13,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { StatesService } from '../../core/services/states.service';
 import { RANK } from '../../core/constants/roles';
 import { environment } from '../../../environments/environment';
+import { DisplayNamePipe } from '../../shared/display-name.pipe';
 
 interface AppTile {
   name: string;
@@ -83,6 +84,7 @@ const APPS: AppTile[] = [
   selector: 'app-dashboard',
   imports: [
     FormsModule,
+    DisplayNamePipe,
     MatCardModule,
     MatButtonModule,
     MatIconModule,

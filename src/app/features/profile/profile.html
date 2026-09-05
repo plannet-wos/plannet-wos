@@ -26,6 +26,25 @@
     </mat-card-content>
   </mat-card>
 
+  <mat-card class="form-card">
+    <mat-card-header>
+      <mat-card-title>Display nickname</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <p>
+        Shown as <strong>{{ account() | displayName }}</strong> everywhere else in the app
+        instead of your email — admin tables, NAP votes, and so on.
+      </p>
+      <form (ngSubmit)="saveNickname()" class="inline-form">
+        <mat-form-field appearance="outline">
+          <mat-label>New nickname</mat-label>
+          <input matInput [(ngModel)]="nickname" name="nickname" maxlength="30" />
+        </mat-form-field>
+        <button mat-flat-button color="primary" type="submit" [disabled]="!nickname">Save</button>
+      </form>
+    </mat-card-content>
+  </mat-card>
+
   @if (canTagAlliance()) {
     <mat-card class="form-card">
       <mat-card-header>

@@ -13,6 +13,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AuthService } from '../../core/services/auth.service';
 import { AccountsService } from '../../core/services/accounts.service';
 import { RANK, ROLE_LABEL } from '../../core/constants/roles';
+import { DisplayNamePipe } from '../../shared/display-name.pipe';
 
 /**
  * Self-service account management — any signed-in user (any rank, even still-pending) can
@@ -26,6 +27,7 @@ import { RANK, ROLE_LABEL } from '../../core/constants/roles';
   selector: 'app-profile',
   imports: [
     FormsModule,
+    DisplayNamePipe,
     MatToolbarModule,
     MatCardModule,
     MatFormFieldModule,
@@ -133,6 +135,21 @@ export class ProfileComponent {
       this.confirmPassword = '';
       this.snackBar.open('Password changed', '', { duration: 2500 });
     });
+  }
+
+  // --- display nickname — shown ("[TAG] nickname", see displayName()) everywhere else in the
+  // app instead of this account's email; see Account.nickname's doc comment for why. ---
+  nickname = '';
+
+  async saveNickname(): Promise<void> {
+    const uid = this.user()?.uid;
+    if (!uid) return;
+    try {
+      await this.accounts.setOwnNickname(uid, this.nickname.trim());
+      this.snackBar.open('Nickname saved', '', { duration: 2000 });
+    } catch (err) {
+      this.snackBar.open((err as Error).message ?? 'Could not save nickname', '', { duration: 3000 });
+    }
   }
 
   // --- "I also personally lead this alliance" self-tag — a superadmin or state_admin's

@@ -38,15 +38,19 @@ export interface NapVote {
  * One account's ballot — doc ID is `${voteId}_${uid}` in the flat `nap_ballots` collection
  * (same composite-id shape svs_submissions uses for its one-per-round-per-player rows), so
  * casting again overwrites the previous choice — changing your mind before the deadline is
- * allowed, there's no "final answer" lock. `allianceId`/`rank` are denormalized from the
- * voter's own account AT THE TIME OF VOTING (not looked up later) so results stay stable even
- * if someone's later reassigned — and so firestore.rules can check who's allowed to vote
- * without a second lookup.
+ * allowed, there's no "final answer" lock. `allianceId`/`rank`/`nickname` are denormalized from
+ * the voter's own account AT THE TIME OF VOTING (not looked up later) so results stay stable
+ * even if someone's later reassigned or renamed — and so firestore.rules can check who's
+ * allowed to vote (and nap-vote-card can label who voted) without a second lookup — a live
+ * lookup of another voter's account doc wouldn't even be allowed by firestore.rules' accounts
+ * read rule for most viewers. `nickname` mirrors Account.nickname exactly (including empty —
+ * displayName() is what turns that into "Unnamed"), not re-derived from it at display time.
  */
 export interface NapBallot {
   voteId: string;
   uid: string;
   email: string;
+  nickname: string;
   rank: Rank;
   allianceId: string;
   selections: string[];

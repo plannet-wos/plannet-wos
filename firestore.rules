@@ -192,6 +192,19 @@ service cloud.firestore {
                 && (!('allianceId' in request.resource.data)
                     || request.resource.data.allianceId.split('-')[0] == myAccount().stateId)
               )))
+        ||
+        // self-chosen display nickname (profile.ts) — every OTHER view now shows
+        // displayName()'s "[TAG] nickname" instead of this account's email (see that util's
+        // doc comment for why). Open to ANY signed-in account, even one still pending — profile
+        // is reachable before approval too, and there's nothing sensitive about a nickname
+        // worth gating on active status. Purely cosmetic, never a permission grant, so unlike
+        // the alliance self-tag above there's no rank restriction or scope to validate, just a
+        // sane length; clearing it (empty string) is always allowed and simply falls back to
+        // "Unnamed" wherever it's shown.
+        (request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname'])
+          && request.resource.data.nickname is string
+          && request.resource.data.nickname.size() <= 30)
       );
 
       allow delete: if isActiveAccount() && myRank() == 0;
@@ -267,8 +280,10 @@ service cloud.firestore {
       allow create, update: if isActiveAccount()
         && ballotId == (request.resource.data.voteId + '_' + request.resource.data.uid)
         && request.auth.uid == request.resource.data.uid
-        && request.resource.data.keys().hasOnly(['voteId', 'uid', 'email', 'rank', 'allianceId', 'selections', 'votedAt'])
+        && request.resource.data.keys().hasOnly(['voteId', 'uid', 'email', 'nickname', 'rank', 'allianceId', 'selections', 'votedAt'])
         && request.resource.data.email == myAccount().email
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname == myAccount().get('nickname', '')
         && request.resource.data.rank == myRank()
         && request.resource.data.allianceId is string
         && request.resource.data.allianceId == myAccount().get('allianceId', null)
