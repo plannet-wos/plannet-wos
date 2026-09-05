@@ -13,6 +13,9 @@ rules_version = '2';
 //     one doc per round with the live computed appointment schedule.
 //   • A separate "saves" app — public 4-char codes, immutable docs. Its
 //     security must NOT be relaxed; only specific creates are allowed.
+//   • Bear Trap Calculator — same public-4-char-code save/share model as
+//     "saves" above, in its own `bear_trap_saves` collection (different
+//     payload shape, same immutability guarantee).
 //
 // OWNERSHIP: this repo (plannet-wos, the hub) is the ONLY place this file is
 // allowed to live and be deployed from. Firestore rules are project-wide,
@@ -397,6 +400,24 @@ service cloud.firestore {
 
       // Saves are immutable — never let a client overwrite or delete a code
       // that's already in use.
+      allow update, delete: if false;
+    }
+
+    // --- Bear Trap Calculator ------------------------------------------
+    // Same public-4-char-code save/share model as `saves` above (see
+    // bear-trap/core/services/save-code.service.ts) — a whole
+    // BearTrapInputs blob under `inputs`, so only its outer shape is
+    // checked, not every nested field (that trust is the same the calc
+    // apps already place in whatever the client round-trips).
+    match /bear_trap_saves/{code} {
+      allow read: if true;
+
+      allow create: if isValidCode(code)
+        && request.resource.data.keys().hasOnly(['v', 'inputs', 'createdAt'])
+        && request.resource.data.v == 1
+        && request.resource.data.inputs is map
+        && request.resource.data.createdAt == request.time;
+
       allow update, delete: if false;
     }
 
