@@ -24,11 +24,23 @@
           @for (opt of vote().options; track opt.id) {
             <div class="option-row" [class.leading]="!isOpen() && isLeading(opt.id)">
               <mat-radio-button [value]="opt.id">{{ opt.text }}</mat-radio-button>
-              <div class="tally">
+              <div
+                class="tally"
+                role="button"
+                tabindex="0"
+                [attr.aria-expanded]="isExpanded(opt.id)"
+                matTooltip="Click to see who voted for this"
+                (click)="toggleExpand(opt.id)"
+                (keydown.enter)="toggleExpand(opt.id)"
+              >
                 <div class="bar" [style.width.%]="((tallyFor(opt.id)?.votes ?? 0) / maxVotes()) * 100"></div>
                 <span class="count">{{ tallyFor(opt.id)?.votes ?? 0 }}</span>
+                <mat-icon class="expand-icon">{{ isExpanded(opt.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
               </div>
             </div>
+            @if (isExpanded(opt.id)) {
+              <ng-container [ngTemplateOutlet]="optionDetail" [ngTemplateOutletContext]="{ optionId: opt.id }"></ng-container>
+            }
           }
         </mat-radio-group>
       } @else {
@@ -37,11 +49,23 @@
             <mat-checkbox [checked]="isSelected(opt.id)" (change)="toggleMulti(opt.id, $event.checked)" [disabled]="!canVote() || !isOpen()">
               {{ opt.text }}
             </mat-checkbox>
-            <div class="tally">
+            <div
+              class="tally"
+              role="button"
+              tabindex="0"
+              [attr.aria-expanded]="isExpanded(opt.id)"
+              matTooltip="Click to see who voted for this"
+              (click)="toggleExpand(opt.id)"
+              (keydown.enter)="toggleExpand(opt.id)"
+            >
               <div class="bar" [style.width.%]="((tallyFor(opt.id)?.votes ?? 0) / maxVotes()) * 100"></div>
               <span class="count">{{ tallyFor(opt.id)?.votes ?? 0 }}</span>
+              <mat-icon class="expand-icon">{{ isExpanded(opt.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
             </div>
           </div>
+          @if (isExpanded(opt.id)) {
+            <ng-container [ngTemplateOutlet]="optionDetail" [ngTemplateOutletContext]="{ optionId: opt.id }"></ng-container>
+          }
         }
       }
     </div>
@@ -52,38 +76,6 @@
         &middot; {{ tally().allianceCount }} alliance{{ tally().allianceCount === 1 ? '' : 's' }} represented
       }
     </p>
-
-    @if (allianceRows().length > 0) {
-      <div class="breakdown">
-        <h4>Alliance results</h4>
-        <ul class="breakdown-list">
-          @for (row of allianceRows(); track row.allianceId) {
-            <li>
-              <span class="breakdown-alliance">{{ allianceName(row.allianceId) }}</span>
-              <span class="breakdown-pick">{{ pickLabel(row) }}</span>
-              <span class="breakdown-count">{{ row.ballotCount }} ballot{{ row.ballotCount === 1 ? '' : 's' }}</span>
-            </li>
-          }
-        </ul>
-      </div>
-
-      @if (canSeeIndividualVotes()) {
-        <div class="breakdown">
-          <h4>Individual votes</h4>
-          <ul class="breakdown-list">
-            @for (ballot of ballots(); track ballot.uid) {
-              <li>
-                <span class="breakdown-alliance">{{ ballot.email }}</span>
-                <span class="breakdown-pick">{{ ballotLabel(ballot) }}</span>
-                <span class="breakdown-count">{{ allianceName(ballot.allianceId) }}</span>
-              </li>
-            }
-          </ul>
-        </div>
-      } @else {
-        <p class="hint">Sign in as an admin to see how each person voted.</p>
-      }
-    }
 
     @if (isOpen()) {
       @if (canVote()) {
@@ -117,3 +109,42 @@
     </mat-card-actions>
   }
 </mat-card>
+
+<!--
+  "Who voted for this" — revealed per option by clicking its tally bar, rather than one flat
+  list dumped below the whole question. Alliance-level results are public (never an individual
+  voter, see alliancesFor()'s doc comment); individual ballots are gated to signed-in admins.
+-->
+<ng-template #optionDetail let-optionId="optionId">
+  <div class="option-detail">
+    @if (alliancesFor(optionId).length > 0) {
+      <div class="detail-row">
+        <span class="detail-label">Alliances</span>
+        <mat-chip-set>
+          @for (row of alliancesFor(optionId); track row.allianceId) {
+            <mat-chip>{{ allianceName(row.allianceId) }}</mat-chip>
+          }
+        </mat-chip-set>
+      </div>
+    } @else {
+      <p class="detail-empty">No alliance has this as its result yet.</p>
+    }
+
+    @if (canSeeIndividualVotes()) {
+      @if (votersFor(optionId); as voters) {
+        @if (voters.length > 0) {
+          <div class="detail-row">
+            <span class="detail-label">Voters</span>
+            <span class="detail-voters">
+              @for (ballot of voters; track ballot.uid; let last = $last) {
+                {{ ballot.email }} ({{ allianceName(ballot.allianceId) }}){{ last ? '' : ', ' }}
+              }
+            </span>
+          </div>
+        }
+      }
+    } @else {
+      <p class="hint">Sign in as an admin to see individual votes.</p>
+    }
+  </div>
+</ng-template>

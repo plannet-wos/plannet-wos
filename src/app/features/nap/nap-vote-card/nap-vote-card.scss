@@ -41,13 +41,30 @@ mat-radio-group {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   min-width: 120px;
   position: relative;
-  height: 16px;
+  height: 22px;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: hidden; // clips .bar to the track's rounded corners
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: rgba(255, 255, 255, 0.18);
+    outline: none;
+  }
+}
+
+.expand-icon {
+  position: relative; // stack above .bar, which is position:absolute
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  opacity: 0.7;
+  margin-right: 2px;
 }
 
 .bar {
@@ -79,51 +96,40 @@ mat-radio-group {
   font-style: italic;
 }
 
-.breakdown {
-  margin: 12px 0;
-
-  h4 {
-    margin: 0 0 4px;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    opacity: 0.6;
-  }
-}
-
-.breakdown-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+// The "who voted for this" panel revealed by clicking an option's tally bar — sits right under
+// that option, not in one flat list dumped below the whole question.
+.option-detail {
+  margin: 2px 4px 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
-
-  li {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding: 6px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-
-    &:last-child {
-      border-bottom: none;
-    }
-  }
+  gap: 6px;
 }
 
-.breakdown-alliance {
-  font-weight: 500;
-  flex: 1 1 auto;
-  min-width: 0;
+.detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.breakdown-pick {
-  font-size: 0.9rem;
-}
-
-.breakdown-count {
+.detail-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   opacity: 0.6;
-  font-size: 0.8rem;
-  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.detail-voters {
+  font-size: 0.85rem;
+}
+
+.detail-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  opacity: 0.6;
+  font-style: italic;
 }
