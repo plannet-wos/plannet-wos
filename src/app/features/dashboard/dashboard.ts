@@ -103,6 +103,11 @@ export class DashboardComponent {
 
   readonly isLoggedIn = this.auth.isAuthenticated;
   readonly account = this.auth.account;
+  // Nudges an admin toward Profile to set a nickname (see displayName()'s doc comment for why
+  // that matters) — a small dot on the menu trigger, not a blocking modal, since a blank
+  // nickname is a cosmetic "Unnamed" fallback, never broken functionality. Clears itself as
+  // soon as account() reflects a saved nickname, same live listener the menu header uses.
+  readonly needsNickname = computed(() => !!this.account() && !this.account()?.nickname?.trim());
   readonly isSuperAdmin = computed(() => this.auth.rank() === RANK.SUPERADMIN);
   readonly isStateAdminOrR5 = computed(() => {
     const rank = this.auth.rank();

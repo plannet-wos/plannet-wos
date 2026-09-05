@@ -16,7 +16,7 @@ import {
   assertSucceeds,
   assertFails,
 } from '@firebase/rules-unit-testing';
-import { doc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, query, where, getDocs } from 'firebase/firestore';
 
 const rules = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8');
 
@@ -290,6 +290,38 @@ await check('state_admin lists pending/active R5s once the query is scoped by st
     where('status', '==', 'active'),
   )));
   assert.ok(activeSnap.docs.length > 0, 'expected at least one active R5 in state 3038');
+});
+
+// --- accounts: state_admin reading a PEER state_admin (state-admin.ts's "Active R5s" list
+// merging in a self-tagged fellow state_admin — see AccountsService.stateAdminAlliesForState$()
+// and sameScope()'s doc comment: this is READ-only, sameScope() itself is deliberately
+// unchanged, so a state_admin still can never WRITE to a peer's account). ---
+await check('state_admin reads a fellow state_admin in their OWN state (needed to spot one who self-tagged as also leading an alliance)', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(getDoc(doc(db, 'accounts/sa-falcon-leader')));
+});
+
+await check('state_admin CANNOT read a state_admin of a DIFFERENT state', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(getDoc(doc(db, 'accounts/sa-9999')));
+});
+
+await check("state_admin CANNOT edit a peer state_admin (the new read clause is read-only — sameScope() still excludes same-rank targets)", async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/sa-falcon-leader'), { allianceId: '3038-hawk' }));
+});
+
+await check('state_admin lists active state_admins in their OWN state, filtering client-side for self-tagged alliance leaders — the actual stateAdminAlliesForState$ shape', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  const snap = await assertSucceeds(getDocs(query(
+    collection(db, 'accounts'),
+    where('stateId', '==', '3038'),
+    where('rank', '==', 1),
+    where('status', '==', 'active'),
+  )));
+  const uids = snap.docs.map((d) => d.id);
+  assert.ok(uids.includes('sa-falcon-leader'), 'expected sa-falcon-leader (self-tagged) in the result');
+  assert.ok(uids.includes('sa-3038'), 'expected the caller\'s own doc in the result too');
 });
 
 // --- accounts: self-service email sync (profile.ts, after verifyBeforeUpdateEmail) ---
