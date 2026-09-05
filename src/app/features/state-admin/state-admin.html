@@ -121,6 +121,10 @@
               <th mat-header-cell *matHeaderCellDef>Email</th>
               <td mat-cell *matCellDef="let row">{{ row | displayName }}</td>
             </ng-container>
+            <ng-container matColumnDef="role">
+              <th mat-header-cell *matHeaderCellDef>Role</th>
+              <td mat-cell *matCellDef="let row">{{ roleLabelFor(row) }}</td>
+            </ng-container>
             <ng-container matColumnDef="scope">
               <th mat-header-cell *matHeaderCellDef>Alliance</th>
               <td mat-cell *matCellDef="let row">{{ row.allianceId }}</td>
@@ -128,53 +132,53 @@
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let row">
-                <button mat-icon-button (click)="startEditR5(row)" matTooltip="Edit role/alliance">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button mat-icon-button color="warn" (click)="revoke(row)">
-                  <mat-icon>block</mat-icon>
-                </button>
+                @if (row.rank === RANK.R5) {
+                  <button mat-icon-button (click)="startEdit(row)" matTooltip="Edit role/alliance">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button color="warn" (click)="revoke(row)">
+                    <mat-icon>block</mat-icon>
+                  </button>
+                } @else {
+                  <span class="hint" matTooltip="A state admin's own role is managed from the Superadmin console, not here">—</span>
+                }
               </td>
             </ng-container>
-            <tr mat-header-row *matHeaderRowDef="activeColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: activeColumns"></tr>
+            <tr mat-header-row *matHeaderRowDef="activeR5Columns"></tr>
+            <tr mat-row *matRowDef="let row; columns: activeR5Columns"></tr>
           </table>
         </div>
       </mat-card-content>
     </mat-card>
 
-    @if (editingR5Uid(); as uid) {
-      @for (row of activeR5(); track row.uid) {
-        @if (row.uid === uid) {
-          <mat-card class="form-card">
-            <mat-card-header>
-              <mat-card-title>Edit {{ row | displayName }}</mat-card-title>
-            </mat-card-header>
-            <mat-card-content>
-              <form (ngSubmit)="saveEditR5(row)" class="inline-form">
-                <mat-form-field appearance="outline">
-                  <mat-label>Role</mat-label>
-                  <mat-select [(ngModel)]="editR5Rank" name="editR5Rank">
-                    @for (r of editR5Ranks(); track r) {
-                      <mat-option [value]="r">{{ roleLabel[r === RANK.R5 ? 'r5' : 'r4'] }}</mat-option>
-                    }
-                  </mat-select>
-                </mat-form-field>
-                <mat-form-field appearance="outline">
-                  <mat-label>Alliance</mat-label>
-                  <mat-select [(ngModel)]="editR5AllianceSlug" name="editR5AllianceSlug" required>
-                    @for (a of editR5AllianceOptions(); track a.id) {
-                      <mat-option [value]="a.slug">{{ a.name }}</mat-option>
-                    }
-                  </mat-select>
-                </mat-form-field>
-                <button mat-flat-button color="primary" type="submit" [disabled]="!editR5AllianceSlug">Save</button>
-                <button mat-button type="button" (click)="cancelEditR5()">Cancel</button>
-              </form>
-            </mat-card-content>
-          </mat-card>
-        }
-      }
+    @if (editingAccount(); as row) {
+      <mat-card class="form-card">
+        <mat-card-header>
+          <mat-card-title>Edit {{ row | displayName }}</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <form (ngSubmit)="saveEdit(row)" class="inline-form">
+            <mat-form-field appearance="outline">
+              <mat-label>Role</mat-label>
+              <mat-select [(ngModel)]="editRank" name="editRank">
+                @for (r of editRanks(); track r) {
+                  <mat-option [value]="r">{{ roleLabel[r === RANK.R5 ? 'r5' : 'r4'] }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Alliance</mat-label>
+              <mat-select [(ngModel)]="editAllianceSlug" name="editAllianceSlug" required>
+                @for (a of editAllianceOptions(); track a.id) {
+                  <mat-option [value]="a.slug">{{ a.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <button mat-flat-button color="primary" type="submit" [disabled]="!editAllianceSlug">Save</button>
+            <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
+          </form>
+        </mat-card-content>
+      </mat-card>
     }
   }
 
@@ -247,6 +251,11 @@
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let row">
+                @if (isStateAdminOrAbove()) {
+                  <button mat-icon-button (click)="startEdit(row)" matTooltip="Edit role/alliance">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                }
                 <button mat-icon-button color="warn" (click)="revoke(row)">
                   <mat-icon>block</mat-icon>
                 </button>

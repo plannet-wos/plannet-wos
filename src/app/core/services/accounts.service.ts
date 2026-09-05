@@ -12,7 +12,7 @@ import {
   query,
   where,
 } from '@angular/fire/firestore';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { Account } from '../models/account.model';
 import { RANK, Rank, ROLE_BY_RANK, Scope, SCOPE_BY_RANK, approverRank } from '../constants/roles';
 
@@ -125,6 +125,27 @@ export class AccountsService {
       where('status', '==', 'active'),
     );
     return collectionData(q) as Observable<Account[]>;
+  }
+
+  /**
+   * Active state_admins in this state who've ALSO self-tagged "I personally lead this
+   * alliance" (profile.ts / accounts' self-tag update rule) — the same R5-equivalent standing
+   * NapVoteCard's canVote() and the R4 queue above already grant them. The state cockpit's
+   * "Active R5s" list (state-admin.ts) merges these in alongside real rank-2 R5 accounts, so a
+   * self-tagged state_admin shows up as their alliance's leader there too — they were
+   * previously invisible on that list since it only ever queried rank == R5. Filtered
+   * client-side for allianceId (Firestore can't combine an inequality/existence check with the
+   * other equality clauses here without a composite index for what's normally a tiny list —
+   * one state_admin per state, occasionally two during a handoff).
+   */
+  stateAdminAlliesForState$(stateId: string): Observable<Account[]> {
+    const q = query(
+      collection(this.firestore, 'accounts'),
+      where('stateId', '==', stateId),
+      where('rank', '==', RANK.STATE_ADMIN),
+      where('status', '==', 'active'),
+    );
+    return (collectionData(q) as Observable<Account[]>).pipe(map((admins) => admins.filter((a) => !!a.allianceId)));
   }
 
   /**

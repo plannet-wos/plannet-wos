@@ -2,7 +2,7 @@ import { Component, inject, computed, signal } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { toSignal, toObservable } from '@angular/core/rxjs-interop';
-import { switchMap, of } from 'rxjs';
+import { switchMap, of, combineLatest, map } from 'rxjs';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -62,7 +62,25 @@ export class StateAdminComponent {
   // --- state_admin view: alliances + R5 queue ---
   readonly alliances = toSignal(this.allianceService.listForState$(this.stateId), { initialValue: [] as Alliance[] });
   readonly pendingR5 = toSignal(this.accounts.pendingR5ForState$(this.stateId), { initialValue: [] as Account[] });
-  readonly activeR5 = toSignal(this.accounts.activeR5ForState$(this.stateId), { initialValue: [] as Account[] });
+
+  // Real rank-2 R5s, merged with any active state_admin in this state who's self-tagged "I
+  // also lead this alliance" (see AccountsService.stateAdminAlliesForState$()'s doc comment) —
+  // that state_admin IS that alliance's leader in every way this app cares about (NapVoteCard's
+  // canVote(), the R4 queue below), so they belong on this list too, not just invisible above
+  // it. roleLabelFor()/RANK distinguish the two kinds of row in the template (only a real R5
+  // row gets the edit/revoke actions — a self-tagged state_admin is managed from the
+  // Superadmin console, never demoted/revoked from here).
+  readonly activeR5 = toSignal(
+    combineLatest([
+      this.accounts.activeR5ForState$(this.stateId),
+      this.accounts.stateAdminAlliesForState$(this.stateId),
+    ]).pipe(map(([r5s, taggedAdmins]) => [...r5s, ...taggedAdmins])),
+    { initialValue: [] as Account[] },
+  );
+
+  roleLabelFor(account: Account): string {
+    return this.roleLabel[account.rank === RANK.STATE_ADMIN ? 'state_admin' : 'r5'];
+  }
 
   // --- R4 queue: state-wide (every alliance in this state) for state_admin/superadmin — see
   // firestore.rules' sameScope() — since they can now approve/revoke any alliance's R4s, not
@@ -97,48 +115,63 @@ export class StateAdminComponent {
   readonly allianceColumns = ['name', 'slug', 'actions'];
   readonly pendingColumns = ['email', 'scope', 'mfa', 'actions'];
   readonly activeColumns = ['email', 'scope', 'actions'];
+  // Active R5s gets its own column set (adds "role") since that table can now hold two kinds
+  // of row — see activeR5's doc comment above.
+  readonly activeR5Columns = ['email', 'role', 'scope', 'actions'];
   readonly roleLabel = ROLE_LABEL;
 
   newAllianceSlug = '';
   newAllianceName = '';
 
-  // --- editing an active R5's alliance/rank — see AccountsService.updateRole()'s doc
+  // --- editing an active R5 or R4's alliance/rank — see AccountsService.updateRole()'s doc
   // comment. This form only ever renders inside the isStateAdminOrAbove() section of the
-  // template, so both branches below are state-wide by construction: a state_admin (or
-  // superadmin) can reassign an R5 to any alliance in the state, and demoting to R4 is
-  // likewise valid for any alliance — see firestore.rules' sameScope(), which no longer
-  // restricts a state_admin's R4 scope to just their own alliance. ---
-  editingR5Uid = signal<string | null>(null);
-  editR5Rank: Rank = RANK.R5;
-  editR5AllianceSlug = '';
+  // template (an R5 gets no edit button for their own R4s — see editable check in the
+  // template — since firestore.rules' sameScope() leaves them nothing meaningful to change:
+  // an R5's edit of an R4 can't move rank off R4 or alliance off their own, both forced by the
+  // rule), so both branches below are state-wide by construction: a state_admin (or
+  // superadmin) can reassign an R5/R4 to any alliance in the state, or promote an R4 straight
+  // to R5 (making them that alliance's new leader) — see firestore.rules' sameScope(), which
+  // doesn't restrict a state_admin's R5/R4 scope to just one alliance. Shared between the
+  // Active R5s and Active R4s tables rather than one form per table — same edit, just a
+  // different starting row. ---
+  editingUid = signal<string | null>(null);
+  editRank: Rank = RANK.R5;
+  editAllianceSlug = '';
 
-  startEditR5(account: Account): void {
-    this.editingR5Uid.set(account.uid);
-    this.editR5Rank = account.rank;
-    this.editR5AllianceSlug = this.alliances().find((a) => a.id === account.allianceId)?.slug ?? '';
+  /** The account editingUid points at — looked up across whichever table it's actually showing in. Plain method, not memoized: called straight from the template. */
+  editingAccount(): Account | undefined {
+    const uid = this.editingUid();
+    if (!uid) return undefined;
+    return this.activeR5().find((a) => a.uid === uid) ?? this.activeR4().find((a) => a.uid === uid);
   }
 
-  cancelEditR5(): void {
-    this.editingR5Uid.set(null);
+  startEdit(account: Account): void {
+    this.editingUid.set(account.uid);
+    this.editRank = account.rank;
+    this.editAllianceSlug = this.alliances().find((a) => a.id === account.allianceId)?.slug ?? '';
+  }
+
+  cancelEdit(): void {
+    this.editingUid.set(null);
   }
 
   // Plain method, not computed() — see signup.ts's needsAlliance doc comment for why: this
-  // reads editR5Rank, a plain (non-signal) ngModel-bound field. Both ranks are always
-  // offered now — see this section's doc comment above.
-  editR5Ranks(): Rank[] {
+  // reads editRank, a plain (non-signal) ngModel-bound field. Both ranks are always offered —
+  // see this section's doc comment above.
+  editRanks(): Rank[] {
     return [RANK.R5, RANK.R4];
   }
 
-  editR5AllianceOptions(): Alliance[] {
+  editAllianceOptions(): Alliance[] {
     return this.alliances();
   }
 
-  async saveEditR5(account: Account): Promise<void> {
-    if (!this.editR5AllianceSlug) return;
+  async saveEdit(account: Account): Promise<void> {
+    if (!this.editAllianceSlug) return;
     try {
-      await this.accounts.updateRole(account, this.editR5Rank, composeAllianceId(this.stateId, this.editR5AllianceSlug));
+      await this.accounts.updateRole(account, this.editRank, composeAllianceId(this.stateId, this.editAllianceSlug));
       this.snackBar.open(`${displayName(account)} updated`, '', { duration: 2500 });
-      this.editingR5Uid.set(null);
+      this.editingUid.set(null);
     } catch (err) {
       this.snackBar.open((err as Error).message, '', { duration: 3000 });
     }

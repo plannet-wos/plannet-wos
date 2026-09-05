@@ -125,7 +125,16 @@ service cloud.firestore {
     match /accounts/{uid} {
       allow read: if request.auth != null
         && (request.auth.uid == uid
-            || (isActiveAccount() && myRank() < resource.data.rank && sameScope(resource.data)));
+            || (isActiveAccount() && myRank() < resource.data.rank && sameScope(resource.data))
+            // a state_admin can also see a PEER state_admin in their own state (never write —
+            // sameScope() above deliberately excludes same-rank targets, that's unchanged).
+            // Needed so a state_admin's own state cockpit can spot a fellow state_admin who's
+            // self-tagged "I also lead this alliance" (see accounts' self-tag update rule) and
+            // list them alongside real R5s — AccountsService.stateAdminAlliesForState$()'s
+            // query would otherwise be denied outright: Firestore fails a whole list query if
+            // ANY doc it could return fails the read rule, not just that one doc.
+            || (isActiveAccount() && myRank() == 1 && resource.data.rank == 1
+                && myAccount().stateId == resource.data.stateId));
 
       // Candidate creates their own pending request. Never rank 0 — that account is
       // hand-provisioned (no one above it to approve a self-request), and mfaEnrolled must

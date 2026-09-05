@@ -22,6 +22,25 @@
   flex: 1;
 }
 
+.profile-trigger {
+  position: relative;
+}
+
+// Nudges an admin who hasn't set a nickname yet toward the Profile page — see
+// DashboardComponent.needsNickname(). Purely a visual hint, no text/count, so a plain
+// absolutely-positioned dot rather than matBadge (which always wants content to size itself
+// around).
+.nickname-nudge-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #e53935;
+  box-shadow: 0 0 0 2px rgba(128, 128, 128, 0.3);
+}
+
 .menu-header {
   padding: 8px 16px 0;
   font-weight: 500;
