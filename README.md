@@ -9,6 +9,7 @@ Source: [plannet-wos org on GitHub](https://github.com/plannet-wos)
 
 - [alliance-wiki](https://github.com/plannet-wos/alliance-wiki) — alliance knowledge base
 - [battle-calculator](https://github.com/plannet-wos/battle-calculator) — solo PvP lineup optimizer
+- [bear-trap](https://github.com/plannet-wos/bear-trap) — Bear Trap hero lineup & troop ratio calculator
 - [foundry-planner](https://github.com/plannet-wos/foundry-planner) — Foundry Battle event planner
 - [furnace-calculator](https://github.com/plannet-wos/furnace-calculator) — furnace upgrade calculator
 - [wos-simulator](https://github.com/plannet-wos/wos-simulator) — Python battle simulator (forked from [ryo-HIT-1589/wos-simulator](https://github.com/ryo-HIT-1589/wos-simulator))

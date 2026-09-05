@@ -69,6 +69,14 @@ const APPS: AppTile[] = [
     color: '#e65100',
     stateScoped: false,
   },
+  {
+    name: 'Bear Trap Calculator',
+    description: 'Find your optimal Bear Trap hero lineup and troop ratio',
+    icon: 'pets',
+    url: 'https://bear-trap.web.app',
+    color: '#6d4c41',
+    stateScoped: false,
+  },
 ];
 
 @Component({
