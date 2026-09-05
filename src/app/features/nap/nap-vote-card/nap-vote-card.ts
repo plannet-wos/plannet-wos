@@ -11,10 +11,12 @@ import { MatRadioModule } from '@angular/material/radio';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { of, switchMap } from 'rxjs';
+import { AllianceService } from '../../../core/services/alliance.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { NapService } from '../../../core/services/nap.service';
-import { NapOptionTally, tallyNapVote } from '../../../core/services/nap-results';
+import { AllianceBreakdownRow, NapOptionTally, allianceBreakdown, tallyNapVote } from '../../../core/services/nap-results';
 import { RANK } from '../../../core/constants/roles';
+import { Alliance } from '../../../core/models/alliance.model';
 import { NapBallot, NapVote } from '../../../core/models/nap-vote.model';
 
 /**
@@ -45,14 +47,28 @@ export class NapVoteCardComponent {
 
   private auth = inject(AuthService);
   private nap = inject(NapService);
+  private allianceService = inject(AllianceService);
   private snackBar = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
 
   private readonly voteId = computed(() => this.vote().id);
 
-  private readonly ballots = toSignal(
+  // Public (not `private`) — nap-vote-card.html lists these directly for the R4+-only
+  // "individual votes" section (see canSeeIndividualVotes below); the alliance-level
+  // breakdown and the overall tally are both derived from this same list.
+  readonly ballots = toSignal(
     toObservable(this.voteId).pipe(switchMap((id) => this.nap.listBallots$(id))),
     { initialValue: [] as NapBallot[] },
+  );
+
+  // Alliance names for display ("House of Cards" instead of "3038-hoc") — looked up once per
+  // vote's stateId, not per ballot. Falls back to the raw id in allianceName() below if an
+  // alliance was since renamed/removed, or just hasn't loaded yet.
+  private readonly allianceNames = toSignal(
+    toObservable(computed(() => this.vote().stateId)).pipe(
+      switchMap((stateId) => this.allianceService.listForState$(stateId)),
+    ),
+    { initialValue: [] as Alliance[] },
   );
 
   private readonly uid = computed(() => this.auth.user()?.uid ?? null);
@@ -73,7 +89,17 @@ export class NapVoteCardComponent {
   readonly tally = computed(() => tallyNapVote(this.vote(), this.ballots()));
   readonly maxVotes = computed(() => Math.max(1, ...this.tally().options.map((o) => o.votes)));
 
+  // "Which alliance voted for what" — public, on every vote regardless of voteScope (see
+  // allianceBreakdown()'s doc comment). Distinct from the raw ballot list below: this names
+  // alliances and their collective position, never an individual voter.
+  readonly allianceRows = computed(() => allianceBreakdown(this.vote(), this.ballots()));
+
   readonly signedIn = computed(() => this.auth.isAuthenticated());
+
+  // Individual ballots (who voted for what) are for signed-in admins only, not the public —
+  // unlike allianceRows above. "R4 and up" is every rank this app has (R4 is the lowest), so
+  // this is just "any active account", same as authGuard's own threshold.
+  readonly canSeeIndividualVotes = computed(() => this.auth.isActive());
 
   readonly canVote = computed(() => {
     const account = this.auth.account();
@@ -147,6 +173,24 @@ export class NapVoteCardComponent {
 
   deadlineLabel(): string {
     return new Date(this.vote().deadline).toLocaleString();
+  }
+
+  allianceName(allianceId: string): string {
+    return this.allianceNames().find((a) => a.id === allianceId)?.name ?? allianceId;
+  }
+
+  optionText(optionId: string): string {
+    return this.vote().options.find((o) => o.id === optionId)?.text ?? optionId;
+  }
+
+  /** For an allianceRows() row's optionIds — the alliance's own pick(s), joined for display. */
+  pickLabel(row: AllianceBreakdownRow): string {
+    return row.optionIds.length > 0 ? row.optionIds.map((id) => this.optionText(id)).join(', ') : 'No majority yet';
+  }
+
+  /** For one ballot in the individual-votes list. */
+  ballotLabel(ballot: NapBallot): string {
+    return ballot.selections.map((id) => this.optionText(id)).join(', ');
   }
 
   async submit(): Promise<void> {

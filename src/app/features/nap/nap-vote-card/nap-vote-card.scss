@@ -78,3 +78,52 @@ mat-radio-group {
   opacity: 0.6;
   font-style: italic;
 }
+
+.breakdown {
+  margin: 12px 0;
+
+  h4 {
+    margin: 0 0 4px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    opacity: 0.6;
+  }
+}
+
+.breakdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+
+  li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+}
+
+.breakdown-alliance {
+  font-weight: 500;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.breakdown-pick {
+  font-size: 0.9rem;
+}
+
+.breakdown-count {
+  opacity: 0.6;
+  font-size: 0.8rem;
+  margin-left: auto;
+}
