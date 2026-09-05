@@ -27,6 +27,15 @@ export interface Account {
    * never any other alliance in the state (state-wide R5 approval is unaffected either way).
    */
   allianceId?: string;
+  /**
+   * Self-chosen display name — profile.ts's self-service field. Every view that would
+   * otherwise show this account's email to OTHER users (admin tables, NAP ballots, the
+   * dashboard's own menu) shows `displayName()`'s "[TAG] nickname" instead — see that util's
+   * doc comment. Never required and never validated for uniqueness; an empty/missing nickname
+   * just falls back to "Unnamed" there. The real email stays visible only on this account's
+   * OWN profile page, where showing it is the point (managing your own login), not a leak.
+   */
+  nickname?: string;
   status: 'pending' | 'active' | 'suspended';
   mfaEnrolled: boolean;
   requestedAt: number;

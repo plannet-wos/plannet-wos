@@ -197,6 +197,11 @@ export class AccountsService {
     await updateDoc(this.ref(uid), { allianceId: allianceId !== undefined ? allianceId : deleteField() });
   }
 
+  /** Self-service display nickname (profile.ts) — see Account.nickname's doc comment and displayName() for why this replaces email everywhere else. Empty string clears it (falls back to "Unnamed" wherever shown), same as any other value — no deleteField() needed since firestore.rules only requires it stay a string, never that the field be absent. */
+  async setOwnNickname(uid: string, nickname: string): Promise<void> {
+    await updateDoc(this.ref(uid), { nickname });
+  }
+
   /**
    * Approve a pending request. Rules enforce the rank/scope match; mfaEnrolled is NOT
    * required here — an approver may knowingly approve a candidate who hasn't set up TOTP

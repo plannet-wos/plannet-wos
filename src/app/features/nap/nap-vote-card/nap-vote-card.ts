@@ -19,6 +19,7 @@ import { AllianceBreakdownRow, NapOptionTally, allianceBreakdown, tallyNapVote }
 import { RANK } from '../../../core/constants/roles';
 import { Alliance } from '../../../core/models/alliance.model';
 import { NapBallot, NapVote } from '../../../core/models/nap-vote.model';
+import { DisplayNamePipe } from '../../../shared/display-name.pipe';
 
 /**
  * A single vote's card — question, options, live tally, and (self-contained, no parent
@@ -31,6 +32,7 @@ import { NapBallot, NapVote } from '../../../core/models/nap-vote.model';
   imports: [
     FormsModule,
     NgTemplateOutlet,
+    DisplayNamePipe,
     MatButtonModule,
     MatCardModule,
     MatCheckboxModule,
@@ -221,6 +223,7 @@ export class NapVoteCardComponent {
         voteId: this.voteId(),
         uid,
         email: account.email,
+        nickname: account.nickname ?? '',
         rank: account.rank,
         allianceId: account.allianceId ?? '',
         selections: this.selected(),

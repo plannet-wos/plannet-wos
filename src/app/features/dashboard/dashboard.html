@@ -27,7 +27,7 @@
       <mat-icon>account_circle</mat-icon>
     </button>
     <mat-menu #userMenu="matMenu">
-      <div class="menu-header">{{ account()?.email }}</div>
+      <div class="menu-header">{{ account() | displayName }}</div>
       <div class="menu-role">{{ account()?.role }}</div>
       @if (account()?.stateId) {
         <div class="menu-alliance">State: {{ account()?.stateId }}</div>

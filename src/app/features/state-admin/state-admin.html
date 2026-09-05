@@ -78,7 +78,7 @@
           <table mat-table [dataSource]="pendingR5()" class="data-table" [class.hidden]="pendingR5().length === 0">
             <ng-container matColumnDef="email">
               <th mat-header-cell *matHeaderCellDef>Email</th>
-              <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+              <td mat-cell *matCellDef="let row">{{ row | displayName }}</td>
             </ng-container>
             <ng-container matColumnDef="scope">
               <th mat-header-cell *matHeaderCellDef>Alliance</th>
@@ -119,7 +119,7 @@
           <table mat-table [dataSource]="activeR5()" class="data-table" [class.hidden]="activeR5().length === 0">
             <ng-container matColumnDef="email">
               <th mat-header-cell *matHeaderCellDef>Email</th>
-              <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+              <td mat-cell *matCellDef="let row">{{ row | displayName }}</td>
             </ng-container>
             <ng-container matColumnDef="scope">
               <th mat-header-cell *matHeaderCellDef>Alliance</th>
@@ -148,7 +148,7 @@
         @if (row.uid === uid) {
           <mat-card class="form-card">
             <mat-card-header>
-              <mat-card-title>Edit {{ row.email }}</mat-card-title>
+              <mat-card-title>Edit {{ row | displayName }}</mat-card-title>
             </mat-card-header>
             <mat-card-content>
               <form (ngSubmit)="saveEditR5(row)" class="inline-form">
@@ -197,7 +197,7 @@
           <table mat-table [dataSource]="pendingR4()" class="data-table" [class.hidden]="pendingR4().length === 0">
             <ng-container matColumnDef="email">
               <th mat-header-cell *matHeaderCellDef>Email</th>
-              <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+              <td mat-cell *matCellDef="let row">{{ row | displayName }}</td>
             </ng-container>
             <ng-container matColumnDef="scope">
               <th mat-header-cell *matHeaderCellDef>Alliance</th>
@@ -238,7 +238,7 @@
           <table mat-table [dataSource]="activeR4()" class="data-table" [class.hidden]="activeR4().length === 0">
             <ng-container matColumnDef="email">
               <th mat-header-cell *matHeaderCellDef>Email</th>
-              <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+              <td mat-cell *matCellDef="let row">{{ row | displayName }}</td>
             </ng-container>
             <ng-container matColumnDef="scope">
               <th mat-header-cell *matHeaderCellDef>Alliance</th>

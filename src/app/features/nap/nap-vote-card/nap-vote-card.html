@@ -137,7 +137,7 @@
             <span class="detail-label">Voters</span>
             <span class="detail-voters">
               @for (ballot of voters; track ballot.uid; let last = $last) {
-                {{ ballot.email }} ({{ allianceName(ballot.allianceId) }}){{ last ? '' : ', ' }}
+                {{ ballot | displayName }}{{ last ? '' : ', ' }}
               }
             </span>
           </div>
