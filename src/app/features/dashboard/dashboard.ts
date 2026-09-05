@@ -73,7 +73,7 @@ const APPS: AppTile[] = [
     name: 'Bear Trap Calculator',
     description: 'Find your optimal Bear Trap hero lineup and troop ratio',
     icon: 'pets',
-    url: 'https://wos-bear-trap.web.app',
+    url: 'https://bear-trap.web.app',
     color: '#6d4c41',
     stateScoped: false,
   },
