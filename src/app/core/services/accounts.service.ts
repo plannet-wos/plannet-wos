@@ -91,6 +91,43 @@ export class AccountsService {
   }
 
   /**
+   * Pending/active R5 requests state-wide — the state cockpit's R5 queue for state_admin/
+   * superadmin. NOT backed by pendingForApprover$/activeManagedBy$: those infer scope from the
+   * TARGET rank's own natural scope (SCOPE_BY_RANK[R5] === 'alliance', since an R5's own
+   * permissions are alliance-bound), which is right for "R5 approves R4" but wrong here — a
+   * state_admin's authority over R5s is state-wide, not tied to any one alliance, and the
+   * approver object has no allianceId of its own to filter by anyway. Calling those helpers
+   * with {rank: STATE_ADMIN, stateId} silently produced a query with NEITHER a stateId nor an
+   * allianceId clause (scope 'alliance' + no approver.allianceId => no clause added at all) —
+   * firestore.rules' sameScope() then has no per-document field to reason about for a
+   * state_admin caller and denies the whole query with a "Null value error", the same failure
+   * mode activeForState$'s comment above documents in detail. Confirmed live: every
+   * state_admin's "Pending R5 requests"/"Active R5s" tables silently showed empty (toSignal
+   * falling back to its initialValue) regardless of real data, and — per that same comment
+   * thread — the error can abort rendering further down the same component. Rank/stateId
+   * filtered directly instead, same shape as pendingR4ForState$/activeR4ForState$ below.
+   */
+  pendingR5ForState$(stateId: string): Observable<Account[]> {
+    const q = query(
+      collection(this.firestore, 'accounts'),
+      where('stateId', '==', stateId),
+      where('rank', '==', RANK.R5),
+      where('status', '==', 'pending'),
+    );
+    return collectionData(q) as Observable<Account[]>;
+  }
+
+  activeR5ForState$(stateId: string): Observable<Account[]> {
+    const q = query(
+      collection(this.firestore, 'accounts'),
+      where('stateId', '==', stateId),
+      where('rank', '==', RANK.R5),
+      where('status', '==', 'active'),
+    );
+    return collectionData(q) as Observable<Account[]>;
+  }
+
+  /**
    * All pending/active R4 requests across EVERY alliance in a state — not just one R5's own
    * alliance. Backs the state cockpit's R4 queue for state_admin/superadmin, who (per
    * firestore.rules' sameScope()) can approve/revoke any R4 in their state, not only within

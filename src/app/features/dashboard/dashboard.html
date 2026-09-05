@@ -7,19 +7,19 @@
     @if (isSuperAdmin()) {
       <button mat-button (click)="goToSuperadmin()">
         <mat-icon>admin_panel_settings</mat-icon>
-        Superadmin
+        <span class="btn-label">Superadmin</span>
       </button>
     }
     @if (isStateAdminOrR5()) {
       <button mat-button (click)="goToStateAdmin()">
         <mat-icon>shield</mat-icon>
-        Admin console
+        <span class="btn-label">Admin console</span>
       </button>
     }
     @if (canUseNap()) {
       <button mat-button (click)="goToNap()">
         <mat-icon>how_to_vote</mat-icon>
-        NAP
+        <span class="btn-label">NAP</span>
       </button>
     }
 
@@ -47,7 +47,7 @@
   } @else {
     <button mat-button (click)="goToLogin()">
       <mat-icon>login</mat-icon>
-      Admin Login
+      <span class="btn-label">Admin Login</span>
     </button>
   }
 </mat-toolbar>
