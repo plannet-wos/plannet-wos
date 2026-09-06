@@ -248,15 +248,22 @@ export class AccountsService {
    * alliance leadership, or reassigning them to R5/R4 outright. `newAllianceId` omitted
    * clears any existing allianceId (e.g. a state_admin who no longer also leads an
    * alliance); pass it whenever the new rank needs one (always for r5/r4, optionally for
-   * state_admin). Rules enforce the same manager/scope hierarchy as approve() — see
+   * state_admin). `newNickname`, when passed, overwrites the target's own self-chosen
+   * nickname (see firestore.rules' accounts update rule for the manager-edit branch this
+   * rides along on — same call, one write, rather than a second round trip) — the edit
+   * forms always pass the field's current contents, whether the manager actually changed it
+   * or not, so omit this entirely only from a caller that has no nickname field of its own
+   * (e.g. a future automated caller), never to mean "leave it as-is" from a form that DOES
+   * show one. Rules enforce the same manager/scope hierarchy as approve() — see
    * firestore.rules' accounts update rule — on both the target's OLD and NEW rank/scope, so
    * this can only move someone within the caller's own authority, never out of it.
    */
-  async updateRole(target: Account, newRank: Rank, newAllianceId?: string): Promise<void> {
+  async updateRole(target: Account, newRank: Rank, newAllianceId?: string, newNickname?: string): Promise<void> {
     await updateDoc(this.ref(target.uid), {
       role: ROLE_BY_RANK[newRank],
       rank: newRank,
       allianceId: newAllianceId !== undefined ? newAllianceId : deleteField(),
+      ...(newNickname !== undefined ? { nickname: newNickname } : {}),
     });
   }
 

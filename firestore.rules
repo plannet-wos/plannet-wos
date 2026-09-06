@@ -165,12 +165,25 @@ service cloud.firestore {
         // one accepting the risk of an unprotected account in their state/alliance, not
         // something rules should force. UI still surfaces TOTP status so that's an informed
         // choice, not a silent one — see superadmin.html/state-admin.html's mfa column.
+        //
+        // Also lets the manager overwrite the target's `nickname` (superadmin.ts/state-admin.ts's
+        // edit form now offers this alongside rank/alliance) — a manager renaming their own
+        // subordinate is a narrower, more scoped action than the self-service nickname clause
+        // below, so it's folded into this same branch rather than a separate one; the
+        // `nickname` guard mirrors that clause's own length limit so a manager can't push
+        // through garbage/oversized text the owner's own self-edit wouldn't have allowed
+        // either. Unlike email/rank/allianceId this branch was never fenced with `hasOnly` —
+        // a manager already had free rein over any field via this branch (approve()/revoke()
+        // both write through it too, touching status/approvedBy/approvedAt), so nickname needs
+        // its own shape guard rather than inheriting one.
         (isActiveAccount()
           && myRank() < resource.data.rank
           && myRank() < request.resource.data.rank
           && request.resource.data.rank in [1, 2, 3]
           && sameScope(resource.data)
-          && sameScope(request.resource.data))
+          && sameScope(request.resource.data)
+          && (!('nickname' in request.resource.data)
+              || (request.resource.data.nickname is string && request.resource.data.nickname.size() <= 30)))
         ||
         // the account owner syncing their own `email` field with Firebase Auth's real email,
         // after confirming a change via verifyBeforeUpdateEmail() — see AuthService.

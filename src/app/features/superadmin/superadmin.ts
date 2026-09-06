@@ -94,6 +94,10 @@ export class SuperadminComponent {
   editingUid = signal<string | null>(null);
   editRank: Rank = RANK.STATE_ADMIN;
   editAllianceSlug = '';
+  // Lets a manager overwrite their subordinate's self-chosen nickname (see
+  // AccountsService.updateRole()'s doc comment) — pre-filled with whatever the target already
+  // has, so leaving it untouched round-trips it unchanged.
+  editNickname = '';
   readonly editAlliances = signal<Alliance[]>([]);
   readonly editableRanks: Rank[] = [RANK.STATE_ADMIN, RANK.R5, RANK.R4];
 
@@ -109,6 +113,7 @@ export class SuperadminComponent {
     this.editRank = account.rank;
     this.editAlliances.set([]);
     this.editAllianceSlug = '';
+    this.editNickname = account.nickname ?? '';
     if (account.stateId) {
       this.allianceService.listForState$(account.stateId).subscribe((alliances) => {
         this.editAlliances.set(alliances);
@@ -137,6 +142,7 @@ export class SuperadminComponent {
         account,
         this.editRank,
         this.editAllianceSlug ? composeAllianceId(account.stateId!, this.editAllianceSlug) : undefined,
+        this.editNickname.trim(),
       );
       this.snackBar.open(`${displayName(account)} updated`, '', { duration: 2500 });
       this.editingUid.set(null);

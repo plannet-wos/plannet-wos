@@ -176,6 +176,10 @@
               }
             </mat-select>
           </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Nickname</mat-label>
+            <input matInput [(ngModel)]="editNickname" name="editNickname" maxlength="30" />
+          </mat-form-field>
           <button mat-flat-button color="primary" type="submit" [disabled]="editNeedsAlliance() && !editAllianceSlug">Save</button>
           <button mat-button type="button" (click)="cancelEdit()">Cancel</button>
         </form>
