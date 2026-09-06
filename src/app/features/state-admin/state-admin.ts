@@ -59,6 +59,11 @@ export class StateAdminComponent {
   // sameScope()); a real R5 sees it only because of this flag, for their own alliance.
   readonly leadsAlliance = computed(() => !!this.account()?.allianceId);
 
+  // account() loads asynchronously (it's an onSnapshot listener on accounts/{uid}), so several
+  // queries below re-derive via switchMap whenever it changes rather than reading rank/
+  // allianceId once at construction time.
+  private readonly account$ = toObservable(this.account);
+
   // --- state_admin view: alliances + R5 queue ---
   readonly alliances = toSignal(this.allianceService.listForState$(this.stateId), { initialValue: [] as Alliance[] });
   readonly pendingR5 = toSignal(this.accounts.pendingR5ForState$(this.stateId), { initialValue: [] as Account[] });
@@ -70,11 +75,24 @@ export class StateAdminComponent {
   // it. roleLabelFor()/RANK distinguish the two kinds of row in the template (only a real R5
   // row gets the edit/revoke actions — a self-tagged state_admin is managed from the
   // Superadmin console, never demoted/revoked from here).
+  //
+  // Gated on isStateAdminOrAbove() via account$ rather than subscribed unconditionally: both
+  // underlying queries are state_admin+-only per firestore.rules (a plain R5 can't read other
+  // R5s or a peer state_admin at all), so issuing them for an R5 caller would get a
+  // permission-denied that errors the combineLatest — and unlike the OLD state_admin-only-
+  // rendered "Active R5s" table, editingAccount() below now reads this signal from UNGATED
+  // markup too (the shared edit form an R5 can also open, for their own R4's nickname), so an
+  // errored signal here could throw where it didn't matter before.
   readonly activeR5 = toSignal(
-    combineLatest([
-      this.accounts.activeR5ForState$(this.stateId),
-      this.accounts.stateAdminAlliesForState$(this.stateId),
-    ]).pipe(map(([r5s, taggedAdmins]) => [...r5s, ...taggedAdmins])),
+    this.account$.pipe(
+      switchMap((acc) => {
+        if (!acc || acc.rank > RANK.STATE_ADMIN) return of([]);
+        return combineLatest([
+          this.accounts.activeR5ForState$(this.stateId),
+          this.accounts.stateAdminAlliesForState$(this.stateId),
+        ]).pipe(map(([r5s, taggedAdmins]) => [...r5s, ...taggedAdmins]));
+      }),
+    ),
     { initialValue: [] as Account[] },
   );
 
@@ -85,12 +103,7 @@ export class StateAdminComponent {
   // --- R4 queue: state-wide (every alliance in this state) for state_admin/superadmin — see
   // firestore.rules' sameScope() — since they can now approve/revoke any alliance's R4s, not
   // just one they personally lead; a state-wide escalation path for when an R5 is slow to
-  // clear their own queue. A real R5 still only ever sees/manages their OWN alliance's R4s.
-  // account() loads asynchronously (it's an onSnapshot listener on accounts/{uid}), so this
-  // re-derives the query via switchMap whenever it changes rather than reading rank/
-  // allianceId once at construction time. ---
-  private readonly account$ = toObservable(this.account);
-
+  // clear their own queue. A real R5 still only ever sees/manages their OWN alliance's R4s. ---
   readonly pendingR4 = toSignal(
     this.account$.pipe(
       switchMap((acc) => {
@@ -123,20 +136,23 @@ export class StateAdminComponent {
   newAllianceSlug = '';
   newAllianceName = '';
 
-  // --- editing an active R5 or R4's alliance/rank — see AccountsService.updateRole()'s doc
-  // comment. This form only ever renders inside the isStateAdminOrAbove() section of the
-  // template (an R5 gets no edit button for their own R4s — see editable check in the
-  // template — since firestore.rules' sameScope() leaves them nothing meaningful to change:
-  // an R5's edit of an R4 can't move rank off R4 or alliance off their own, both forced by the
-  // rule), so both branches below are state-wide by construction: a state_admin (or
-  // superadmin) can reassign an R5/R4 to any alliance in the state, or promote an R4 straight
-  // to R5 (making them that alliance's new leader) — see firestore.rules' sameScope(), which
-  // doesn't restrict a state_admin's R5/R4 scope to just one alliance. Shared between the
-  // Active R5s and Active R4s tables rather than one form per table — same edit, just a
-  // different starting row. ---
+  // --- editing an active R5 or R4's alliance/rank/nickname — see AccountsService.updateRole()'s
+  // doc comment. The Role/Alliance selects only ever render for state_admin+ (isStateAdminOrAbove()
+  // in the template) — an R5 editing their OWN R4 can't move rank off R4 or alliance off their
+  // own anyway, both forced by firestore.rules' sameScope(), so offering those controls to an
+  // R5 would just be a dropdown that always fails on save. The Nickname field, unlike those
+  // two, IS something an R5 can meaningfully change on their own R4 (rules only ever gated
+  // nickname on scope/rank matching, both already satisfied for "my own R4"), so it's shown to
+  // BOTH state_admin+ AND a real R5 — see the Active R4s table's edit button, no longer
+  // state_admin-only. Shared between the Active R5s and Active R4s tables rather than one form
+  // per table — same edit, just a different starting row. ---
   editingUid = signal<string | null>(null);
   editRank: Rank = RANK.R5;
   editAllianceSlug = '';
+  // Lets a manager overwrite their subordinate's self-chosen nickname (see
+  // AccountsService.updateRole()'s doc comment) — pre-filled with whatever the target already
+  // has, so leaving it untouched round-trips it unchanged.
+  editNickname = '';
 
   /** The account editingUid points at — looked up across whichever table it's actually showing in. Plain method, not memoized: called straight from the template. */
   editingAccount(): Account | undefined {
@@ -149,6 +165,7 @@ export class StateAdminComponent {
     this.editingUid.set(account.uid);
     this.editRank = account.rank;
     this.editAllianceSlug = this.alliances().find((a) => a.id === account.allianceId)?.slug ?? '';
+    this.editNickname = account.nickname ?? '';
   }
 
   cancelEdit(): void {
@@ -162,14 +179,24 @@ export class StateAdminComponent {
     return [RANK.R5, RANK.R4];
   }
 
+  // state_admin+ can reassign into any alliance in the state; the Alliance select is hidden
+  // from a plain R5 entirely (see the template), but this stays consistent with that anyway —
+  // an R5's OWN alliance is the only option sameScope() would ever accept from them.
   editAllianceOptions(): Alliance[] {
-    return this.alliances();
+    if (this.isStateAdminOrAbove()) return this.alliances();
+    const mine = this.account()?.allianceId;
+    return this.alliances().filter((a) => a.id === mine);
   }
 
   async saveEdit(account: Account): Promise<void> {
     if (!this.editAllianceSlug) return;
     try {
-      await this.accounts.updateRole(account, this.editRank, composeAllianceId(this.stateId, this.editAllianceSlug));
+      await this.accounts.updateRole(
+        account,
+        this.editRank,
+        composeAllianceId(this.stateId, this.editAllianceSlug),
+        this.editNickname.trim(),
+      );
       this.snackBar.open(`${displayName(account)} updated`, '', { duration: 2500 });
       this.editingUid.set(null);
     } catch (err) {

@@ -225,6 +225,40 @@ await check("superadmin reassigns an active state_admin to also lead an alliance
   }));
 });
 
+// --- accounts: a manager overwriting a subordinate's nickname (superadmin.ts/state-admin.ts's
+// edit form) — rides the same manager branch as rank/alliance reassignment above, see
+// AccountsService.updateRole()'s doc comment. ---
+await check("state_admin overwrites an active R5's nickname (rank/alliance carried through unchanged)", async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r5-wolf'), {
+    role: 'r5', rank: 2, allianceId: '3038-wolf', nickname: 'WolfBoss',
+  }));
+});
+
+await check("an R5 overwrites their OWN R4's nickname — this is the one thing left for an R5 to meaningfully edit on their own R4 (rank/alliance are both forced unchanged by sameScope())", async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/r4-active'), {
+    role: 'r4', rank: 3, allianceId: '3038-eagle', nickname: 'EagleFour',
+  }));
+  // restore for later ballot tests expecting r4-active to have no nickname
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r4-active'), { nickname: deleteField() }, { merge: true }));
+});
+
+await check("an R5 CANNOT touch a DIFFERENT alliance's R4 nickname — same out-of-scope denial as any other field on that branch", async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/r4-falcon-active'), {
+    role: 'r4', rank: 3, allianceId: '3038-falcon', nickname: 'Sneaky',
+  }));
+});
+
+await check('a manager cannot push an over-30-character nickname onto their subordinate', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/r5-wolf'), {
+    role: 'r5', rank: 2, allianceId: '3038-wolf', nickname: 'x'.repeat(31),
+  }));
+});
+
 // --- accounts: activeForState$'s list query (superadmin's state-management drill-down) ---
 // A `list` query's rule check needs a concrete value for every field the rule compares
 // against — `resource.data.rank` here — for EVERY document that could possibly match. A
