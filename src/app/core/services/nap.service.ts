@@ -90,4 +90,19 @@ export class NapService {
   async castBallot(ballot: NapBallot): Promise<void> {
     await setDoc(doc(this.firestore, `nap_ballots/${ballotId(ballot.voteId, ballot.uid)}`), ballot);
   }
+
+  /**
+   * Pushes a freshly-changed nickname onto every ballot this uid has ever cast, including on
+   * votes that have since closed — see firestore.rules' nap_ballots update rule for the
+   * narrow nickname-only carve-out this relies on (never touches selections/rank/allianceId,
+   * so a closed vote's actual result is untouched). Called from AccountsService.
+   * setOwnNickname() right after the account write; a failed individual ballot update (e.g. a
+   * network blip) is swallowed rather than surfaced as the whole nickname save failing — the
+   * account's own nickname field is the source of truth, this is best-effort mirroring, and
+   * the next nickname change (or, for a still-open vote, re-casting) retries it anyway.
+   */
+  async syncNicknameOnBallots(uid: string, nickname: string): Promise<void> {
+    const snap = await getDocs(query(collection(this.firestore, 'nap_ballots'), where('uid', '==', uid)));
+    await Promise.allSettled(snap.docs.map((d) => updateDoc(d.ref, { nickname })));
+  }
 }

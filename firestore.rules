@@ -72,6 +72,16 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/nap_votes/$(voteId)).data;
     }
 
+    // Used by nap_ballots' manager-driven nickname-sync branch below — that write is checked
+    // against the ballot owner's CURRENT account (rank/allianceId/nickname might have changed
+    // since they cast this ballot), not the ballot's own denormalized snapshot of those same
+    // fields at cast time. Repeated get()s of the same doc within one rule evaluation are
+    // cached, so calling this more than once per request (as that branch does) costs nothing
+    // extra — same assumption napVote() above already relies on.
+    function accountFor(uid) {
+      return get(/databases/$(database)/documents/accounts/$(uid)).data;
+    }
+
     // --- states (registry of game servers — see the multi-state rollout plan) --
     // Read is open so the state picker can list them; creating a new state (onboarding a
     // game server) and any other write is superadmin-only.
@@ -299,23 +309,56 @@ service cloud.firestore {
     match /nap_ballots/{ballotId} {
       allow read: if true;
 
-      allow create, update: if isActiveAccount()
-        && ballotId == (request.resource.data.voteId + '_' + request.resource.data.uid)
-        && request.auth.uid == request.resource.data.uid
-        && request.resource.data.keys().hasOnly(['voteId', 'uid', 'email', 'nickname', 'rank', 'allianceId', 'selections', 'votedAt'])
-        && request.resource.data.email == myAccount().email
-        && request.resource.data.nickname is string
-        && request.resource.data.nickname == myAccount().get('nickname', '')
-        && request.resource.data.rank == myRank()
-        && request.resource.data.allianceId is string
-        && request.resource.data.allianceId == myAccount().get('allianceId', null)
-        && request.resource.data.selections is list
-        && request.resource.data.selections.size() >= 1
-        && request.resource.data.selections.hasOnly(napVote(request.resource.data.voteId).optionIds)
-        && (napVote(request.resource.data.voteId).choiceMode == 'multiple' || request.resource.data.selections.size() == 1)
-        && napVote(request.resource.data.voteId).deadline > request.time.toMillis()
-        && (myRank() == 0 || myAccount().stateId == napVote(request.resource.data.voteId).stateId)
-        && (napVote(request.resource.data.voteId).voteScope != 'r5_only' || myRank() <= 2);
+      allow create, update: if isActiveAccount() && (
+        (
+          ballotId == (request.resource.data.voteId + '_' + request.resource.data.uid)
+          && request.auth.uid == request.resource.data.uid
+          && request.resource.data.keys().hasOnly(['voteId', 'uid', 'email', 'nickname', 'rank', 'allianceId', 'selections', 'votedAt'])
+          && request.resource.data.email == myAccount().email
+          && request.resource.data.nickname is string
+          && request.resource.data.nickname == myAccount().get('nickname', '')
+          && request.resource.data.rank == myRank()
+          && request.resource.data.allianceId is string
+          && request.resource.data.allianceId == myAccount().get('allianceId', null)
+          && request.resource.data.selections is list
+          && request.resource.data.selections.size() >= 1
+          && request.resource.data.selections.hasOnly(napVote(request.resource.data.voteId).optionIds)
+          && (napVote(request.resource.data.voteId).choiceMode == 'multiple' || request.resource.data.selections.size() == 1)
+          && napVote(request.resource.data.voteId).deadline > request.time.toMillis()
+          && (myRank() == 0 || myAccount().stateId == napVote(request.resource.data.voteId).stateId)
+          && (napVote(request.resource.data.voteId).voteScope != 'r5_only' || myRank() <= 2)
+        )
+        ||
+        // keeping an EXISTING ballot's displayed nickname in sync with the caster's own
+        // account, even once the vote has closed — AccountsService.setOwnNickname() pushes
+        // this to every ballot the account has ever cast (see its doc comment), so changing a
+        // nickname doesn't leave every vote you already voted in stuck showing "Unnamed" or an
+        // old name forever, only re-castable by literally re-voting. Applies to `update` only
+        // by construction — `create` has no pre-existing `resource.data.uid` to compare
+        // against, so `resource.data.uid` errors and this branch evaluates to false there,
+        // falling through to the OTHER branch above for casting a genuinely NEW ballot.
+        // Touches NOTHING but `nickname` — selections/rank/allianceId/votedAt on a closed
+        // vote's ballot stay exactly as cast, this only ever changes how that same cast vote
+        // is DISPLAYED, never its outcome.
+        (request.auth.uid == resource.data.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname'])
+          && request.resource.data.nickname is string
+          && request.resource.data.nickname == myAccount().get('nickname', ''))
+        ||
+        // same nickname-only sync as above, but pushed by a MANAGER instead of the ballot's
+        // own voter — AccountsService.updateRole() (superadmin.ts/state-admin.ts's edit form)
+        // can also overwrite a subordinate's nickname, and that should reach their past
+        // ballots too, not just self-service changes. Checked against the ballot owner's
+        // CURRENT account via accountFor() — rank/allianceId there may have moved since this
+        // ballot was cast, so scope has to reflect who they are NOW, same as the accounts
+        // collection's own manager-edit rule.
+        (isActiveAccount()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nickname'])
+          && request.resource.data.nickname is string
+          && myRank() < accountFor(resource.data.uid).rank
+          && sameScope(accountFor(resource.data.uid))
+          && request.resource.data.nickname == accountFor(resource.data.uid).get('nickname', ''))
+      );
 
       allow delete: if isActiveAccount() && myRank() <= 1
         && (myRank() == 0 || myAccount().stateId == napVote(resource.data.voteId).stateId);
