@@ -13,9 +13,11 @@ rules_version = '2';
 //     one doc per round with the live computed appointment schedule.
 //   • A separate "saves" app — public 4-char codes, immutable docs. Its
 //     security must NOT be relaxed; only specific creates are allowed.
-//   • Bear Trap Calculator — same public-4-char-code save/share model as
-//     "saves" above, in its own `bear_trap_saves` collection (different
-//     payload shape, same immutability guarantee).
+//   • Bear Trap Calculator — its own `bear_trap_saves` collection, one doc
+//     per player keyed by their own (numeric) governor ID, overwritable on
+//     re-save. Still accepts the app's earlier public-4-char-code saves
+//     (immutable, same shape as "saves" above) for any codes already
+//     handed out, though the app no longer generates new ones.
 //
 // OWNERSHIP: this repo (plannet-wos, the hub) is the ONLY place this file is
 // allowed to live and be deployed from. Firestore rules are project-wide,
@@ -484,21 +486,33 @@ service cloud.firestore {
     }
 
     // --- Bear Trap Calculator ------------------------------------------
-    // Same public-4-char-code save/share model as `saves` above (see
-    // bear-trap/core/services/save-code.service.ts) — a whole
+    // One doc per player, keyed by their own Whiteout Survival governor ID
+    // (see bear-trap/core/services/save-code.service.ts) — a whole
     // BearTrapInputs blob under `inputs`, so only its outer shape is
     // checked, not every nested field (that trust is the same the calc
-    // apps already place in whatever the client round-trips).
-    match /bear_trap_saves/{code} {
+    // apps already place in whatever the client round-trips). Saving again
+    // under the same ID overwrites that player's own slot, hence
+    // create+update both being allowed here (unlike `saves`/the legacy
+    // code branch below, which are one-shot and immutable by design).
+    match /bear_trap_saves/{id} {
       allow read: if true;
 
-      allow create: if isValidCode(code)
+      allow create, update: if isValidBearTrapPlayerId(id)
+        && request.resource.data.keys().hasOnly(['v', 'inputs', 'updatedAt'])
+        && request.resource.data.v == 1
+        && request.resource.data.inputs is map
+        && request.resource.data.updatedAt == request.time;
+
+      // Legacy public 4-char share codes from before the player-ID save
+      // model — create-only, immutable, kept only so codes already handed
+      // out keep loading. The app no longer generates these.
+      allow create: if isValidCode(id)
         && request.resource.data.keys().hasOnly(['v', 'inputs', 'createdAt'])
         && request.resource.data.v == 1
         && request.resource.data.inputs is map
         && request.resource.data.createdAt == request.time;
 
-      allow update, delete: if false;
+      allow delete: if false;
     }
 
     // Default-deny everything else.
@@ -511,4 +525,10 @@ service cloud.firestore {
 // 4-char codes from the alphabet 23456789ABCDEFGHJKMNPQRSTUVWXYZ.
 function isValidCode(code) {
   return code.matches('^[2-9A-HJ-NP-Z]{4}$');
+}
+
+// Whiteout Survival governor IDs are numeric. Require 5+ digits so this
+// never overlaps the 4-char code alphabet above (which also spans 2-9).
+function isValidBearTrapPlayerId(id) {
+  return id.matches('^[0-9]{5,12}$');
 }
