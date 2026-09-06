@@ -766,6 +766,42 @@ await check('votes stop accepting ballots once the deadline has passed', async (
   }));
 });
 
+// --- nap_ballots: nickname-only sync on an EXISTING ballot, even once its vote has closed —
+// AccountsService.setOwnNickname()/updateRole() push a changed nickname onto every ballot the
+// account has ever cast (see NapService.syncNicknameOnBallots()'s doc comment), so a nickname
+// change doesn't leave old votes stuck showing a stale name/"Unnamed" forever. ---
+await check("the voter themselves refreshes their OWN ballot's nickname on an ALREADY-CLOSED vote — the whole point of this carve-out", async () => {
+  await testEnv.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'nap_ballots/vote-closed_r5-eagle'), {
+      voteId: 'vote-closed', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle',
+      selections: ['a'], votedAt: Date.now() - 4000,
+    });
+    // the account's nickname changed FIRST (e.g. via profile.ts) -- the ballot is catching up.
+    await setDoc(doc(ctx.firestore(), 'accounts/r5-eagle'), { nickname: 'EagleNow' }, { merge: true });
+  });
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'nap_ballots/vote-closed_r5-eagle'), { nickname: 'EagleNow' }));
+});
+
+await check("the nickname-only sync branch can't be used to piggyback OTHER changes onto a closed ballot", async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(updateDoc(doc(db, 'nap_ballots/vote-closed_r5-eagle'), { nickname: 'Sneaky', selections: ['b'] }));
+});
+
+await check("a state_admin (their manager) can ALSO refresh r5-eagle's closed-ballot nickname, matching r5-eagle's CURRENT account nickname", async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r5-eagle'), { nickname: 'RenamedByManager' }, { merge: true }));
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'nap_ballots/vote-closed_r5-eagle'), { nickname: 'RenamedByManager' }));
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/r5-eagle'), { nickname: deleteField() }, { merge: true }));
+});
+
+await check("an unrelated account (out of scope) CANNOT refresh someone else's ballot nickname", async () => {
+  const db = testEnv.authenticatedContext('r4-active').firestore();
+  await assertFails(updateDoc(doc(db, 'nap_ballots/vote-closed_r5-eagle'), { nickname: 'Sneaky' }));
+});
+
 // --- nap_votes: hide/delete is state_admin+ only, never the R5 creator ---
 await check('the R5 who created a vote cannot hide or delete it themselves', async () => {
   const db = testEnv.authenticatedContext('r5-eagle').firestore();

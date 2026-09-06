@@ -15,6 +15,7 @@ import {
 import { Observable, map } from 'rxjs';
 import { Account } from '../models/account.model';
 import { RANK, Rank, ROLE_BY_RANK, Scope, SCOPE_BY_RANK, approverRank } from '../constants/roles';
+import { NapService } from './nap.service';
 
 export interface RequestRoleParams {
   uid: string;
@@ -27,6 +28,7 @@ export interface RequestRoleParams {
 @Injectable({ providedIn: 'root' })
 export class AccountsService {
   private firestore = inject(Firestore);
+  private nap = inject(NapService);
 
   private ref(uid: string) {
     return doc(this.firestore, `accounts/${uid}`);
@@ -218,9 +220,20 @@ export class AccountsService {
     await updateDoc(this.ref(uid), { allianceId: allianceId !== undefined ? allianceId : deleteField() });
   }
 
-  /** Self-service display nickname (profile.ts) — see Account.nickname's doc comment and displayName() for why this replaces email everywhere else. Empty string clears it (falls back to "Unnamed" wherever shown), same as any other value — no deleteField() needed since firestore.rules only requires it stay a string, never that the field be absent. */
+  /**
+   * Self-service display nickname (profile.ts) — see Account.nickname's doc comment and
+   * displayName() for why this replaces email everywhere else. Empty string clears it (falls
+   * back to "Unnamed" wherever shown), same as any other value — no deleteField() needed since
+   * firestore.rules only requires it stay a string, never that the field be absent. Also
+   * mirrors the new nickname onto every NAP ballot this account has ever cast (see
+   * NapService.syncNicknameOnBallots()'s doc comment) — without this, a NAP vote a person cast
+   * before ever setting a nickname (or before changing it) would keep showing their old
+   * nickname/"Unnamed" forever, since ballot fields are otherwise only ever refreshed by
+   * re-casting the same vote.
+   */
   async setOwnNickname(uid: string, nickname: string): Promise<void> {
     await updateDoc(this.ref(uid), { nickname });
+    await this.nap.syncNicknameOnBallots(uid, nickname);
   }
 
   /**
@@ -265,6 +278,12 @@ export class AccountsService {
       allianceId: newAllianceId !== undefined ? newAllianceId : deleteField(),
       ...(newNickname !== undefined ? { nickname: newNickname } : {}),
     });
+    // Mirror onto the target's past NAP ballots too — see setOwnNickname()'s and
+    // NapService.syncNicknameOnBallots()'s doc comments; a manager-driven rename shouldn't
+    // leave old votes showing a stale name any more than a self-service one should.
+    if (newNickname !== undefined) {
+      await this.nap.syncNicknameOnBallots(target.uid, newNickname);
+    }
   }
 
   /** Rank that would approve/revoke `rank` — undefined for superadmin. Re-exported here so components don't need to import roles.ts directly for this one thing. */
