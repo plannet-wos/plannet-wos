@@ -32,8 +32,15 @@ export interface Account {
    * otherwise show this account's email to OTHER users (admin tables, NAP ballots, the
    * dashboard's own menu) shows `displayName()`'s "[TAG] nickname" instead — see that util's
    * doc comment. Never required and never validated for uniqueness; an empty/missing nickname
-   * just falls back to "Unnamed" there. The real email stays visible only on this account's
-   * OWN profile page, where showing it is the point (managing your own login), not a leak.
+   * just falls back to "Unnamed" there. The real email stays visible on this account's OWN
+   * profile page (managing your own login is the point, not a leak), and — deliberately, per
+   * live feedback — on the manager-edit form a superadmin/state_admin/R5 sees when editing THAT
+   * subordinate's role/alliance/nickname (superadmin.html/state-admin.html's edit card
+   * subtitle): an eligible manager already has read access to this account's real email
+   * through the exact same rules that let them edit it, this only surfaces what they could
+   * already see, and knowing who they're emailing/DMing while managing someone isn't the
+   * public exposure nicknames exist to prevent. Every OTHER admin-table/list view stays
+   * nickname-only.
    */
   nickname?: string;
   status: 'pending' | 'active' | 'suspended';
