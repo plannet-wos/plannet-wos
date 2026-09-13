@@ -1,0 +1,127 @@
+<mat-toolbar class="toolbar">
+  <button mat-icon-button (click)="goBack()">
+    <mat-icon>arrow_back</mat-icon>
+  </button>
+  <span class="brand">State {{ stateId }} — Fortress</span>
+  <span class="spacer"></span>
+  @if (isAuthenticated()) {
+    <button mat-icon-button (click)="logout()">
+      <mat-icon>logout</mat-icon>
+    </button>
+  }
+</mat-toolbar>
+
+<div class="fortress">
+  <p class="intro">
+    Which alliance holds each Stronghold and Fortress, and the control reward it currently pays out —
+    decided by NAP vote, not by fighting for it. Visible to anyone; kept up to date by state {{ stateId }}'s
+    state admin(s).
+    @if (!canEdit()) {
+      Only a state admin can change assignments here.
+    }
+  </p>
+
+  <div class="phase-row">
+    <span class="phase-label">Current phase:</span>
+    @if (canEdit()) {
+      <mat-form-field appearance="outline" class="phase-select">
+        <mat-select [value]="currentPhase()" (selectionChange)="setPhase($event.value)">
+          @for (p of phases; track p) {
+            <mat-option [value]="p">Phase {{ p }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    } @else {
+      <span class="phase-value">Phase {{ currentPhase() }} of {{ phases.length }}</span>
+    }
+  </div>
+
+  <h2 class="section-title">Strongholds</h2>
+  <p class="hint">4 total.</p>
+  <div class="board">
+    @for (cell of strongholds(); track trackCell($index, cell)) {
+      <mat-card class="cell">
+        <div class="cell-number">Stronghold {{ cell.number }}</div>
+        @if (canEdit()) {
+          <mat-form-field appearance="outline" class="cell-field">
+            <mat-label>Alliance</mat-label>
+            <mat-select [value]="cell.holding?.allianceId ?? ''" (selectionChange)="assign(cell, $event.value)">
+              <mat-option value="">Unclaimed</mat-option>
+              @for (a of allianceOptions(); track a.id) {
+                <mat-option [value]="a.id">{{ a.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        } @else {
+          <div class="cell-holder" [class.unclaimed]="!cell.holding?.allianceId">
+            {{ allianceLabel(cell.holding?.allianceId ?? null) }}
+          </div>
+        }
+        @if (cell.reward) {
+          <app-reward-chip [reward]="cell.reward" />
+        }
+      </mat-card>
+    }
+  </div>
+
+  <h2 class="section-title">Fortresses</h2>
+  <p class="hint">12 total.</p>
+  <div class="board">
+    @for (cell of fortresses(); track trackCell($index, cell)) {
+      <mat-card class="cell">
+        <div class="cell-number">Fortress {{ cell.number }}</div>
+        @if (canEdit()) {
+          <mat-form-field appearance="outline" class="cell-field">
+            <mat-label>Alliance</mat-label>
+            <mat-select [value]="cell.holding?.allianceId ?? ''" (selectionChange)="assign(cell, $event.value)">
+              <mat-option value="">Unclaimed</mat-option>
+              @for (a of allianceOptions(); track a.id) {
+                <mat-option [value]="a.id">{{ a.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        } @else {
+          <div class="cell-holder" [class.unclaimed]="!cell.holding?.allianceId">
+            {{ allianceLabel(cell.holding?.allianceId ?? null) }}
+          </div>
+        }
+        @if (cell.reward) {
+          <app-reward-chip [reward]="cell.reward" />
+        }
+      </mat-card>
+    }
+  </div>
+
+  <mat-card class="schedule-card">
+    <mat-card-header>
+      <mat-card-title>Full 8-phase reward schedule</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <p class="hint">Every building's control reward across the whole season, not just the current phase — useful for planning the next NAP vote ahead of time.</p>
+      <div class="schedule-scroll">
+        <table class="schedule-table">
+          <thead>
+            <tr>
+              <th></th>
+              @for (p of phases; track p) {
+                <th [class.current-phase]="p === currentPhase()">Phase {{ p }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of scheduleRows(); track row.kind + row.number) {
+              <tr>
+                <th class="row-label">{{ row.kind === 'stronghold' ? 'Stronghold' : 'Fortress' }} {{ row.number }}</th>
+                @for (reward of row.schedule; track $index) {
+                  <td [class.current-phase]="$index + 1 === currentPhase()">
+                    <app-reward-chip [reward]="reward" />
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

@@ -1,0 +1,8 @@
+@if (rewardInfo[reward].icon) {
+  <span class="reward-chip icon" [title]="rewardInfo[reward].label">
+    <img [src]="rewardInfo[reward].icon" [alt]="rewardInfo[reward].label" />
+    <span class="reward-label">{{ rewardInfo[reward].label }}</span>
+  </span>
+} @else {
+  <span class="reward-chip" [style.background]="rewardInfo[reward].color">{{ rewardInfo[reward].label }}</span>
+}

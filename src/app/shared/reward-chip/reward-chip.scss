@@ -1,0 +1,38 @@
+:host {
+  display: inline-block;
+}
+
+// Color is a scanning aid only — the reward's name is always printed too, never color-alone —
+// so a single dark-ink-on-light-fill treatment reads fine across every hue in REWARD_INFO
+// without needing a per-color contrast check (see fortress-rewards.ts's doc comment).
+.reward-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #0b0b0b;
+
+  &.icon {
+    // the icon itself already carries the reward's identity — no colored fill needed behind it,
+    // just enough padding that it doesn't look cramped against neighboring cells.
+    background: rgba(128, 128, 128, 0.15);
+    padding: 2px 8px 2px 2px;
+  }
+
+  img {
+    width: 20px;
+    height: 20px;
+    object-fit: cover;
+    border-radius: 3px;
+    // JPEG icons (screenshots, not cutouts) come with their own square background — a hairline
+    // ring keeps them from looking like a stray photo dropped into the chip.
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
+  }
+
+  .reward-label {
+    color: var(--mat-sys-on-surface, #e0e0e0);
+  }
+}
