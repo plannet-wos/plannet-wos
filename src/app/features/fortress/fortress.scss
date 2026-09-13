@@ -91,17 +91,10 @@
   }
 }
 
-// Color is a scanning aid only — the reward's name is always printed on the chip itself, never
-// color-alone — so a single dark-ink-on-light-fill treatment reads fine across every hue in
-// REWARD_INFO without needing a per-color contrast check (see fortress-rewards.ts's doc comment).
-.reward-chip {
-  display: inline-block;
+// app-reward-chip is an inline-block flex item here — without this it'd stretch to the cell's
+// full width (flex's default cross-axis stretch), instead of sitting at its own content size.
+.cell app-reward-chip {
   align-self: flex-start;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #0b0b0b;
 }
 
 .schedule-card {

@@ -22,7 +22,8 @@ import {
   fortressHoldingId,
 } from '../../core/models/fortress-holding.model';
 import { Alliance } from '../../core/models/alliance.model';
-import { PHASE_COUNT, REWARD_INFO, RewardKey, rewardForPhase, STRONGHOLD_REWARD_SCHEDULE, FORTRESS_REWARD_SCHEDULE } from '../../core/constants/fortress-rewards';
+import { PHASE_COUNT, RewardKey, rewardForPhase, STRONGHOLD_REWARD_SCHEDULE, FORTRESS_REWARD_SCHEDULE } from '../../core/constants/fortress-rewards';
+import { RewardChipComponent } from '../../shared/reward-chip/reward-chip';
 
 /** One grid cell — a building number paired with whatever holding doc (if any) exists for it, plus its reward for the state's current phase. */
 interface BuildingCell {
@@ -43,6 +44,7 @@ interface BuildingCell {
     MatSelectModule,
     MatSnackBarModule,
     MatToolbarModule,
+    RewardChipComponent,
   ],
   templateUrl: './fortress.html',
   styleUrl: './fortress.scss',
@@ -57,7 +59,6 @@ export class FortressComponent {
   readonly stateId = inject(ActivatedRoute).snapshot.paramMap.get('stateId')!;
   readonly account = this.auth.account;
   readonly isAuthenticated = this.auth.isAuthenticated;
-  readonly rewardInfo = REWARD_INFO;
   readonly phases = Array.from({ length: PHASE_COUNT }, (_, i) => i + 1);
 
   // Public page — no route guard (see app.routes.ts) — but editing is state_admin/superadmin

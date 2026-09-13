@@ -58,7 +58,7 @@
           </div>
         }
         @if (cell.reward) {
-          <div class="reward-chip" [style.background]="rewardInfo[cell.reward].color">{{ rewardInfo[cell.reward].label }}</div>
+          <app-reward-chip [reward]="cell.reward" />
         }
       </mat-card>
     }
@@ -86,7 +86,7 @@
           </div>
         }
         @if (cell.reward) {
-          <div class="reward-chip" [style.background]="rewardInfo[cell.reward].color">{{ rewardInfo[cell.reward].label }}</div>
+          <app-reward-chip [reward]="cell.reward" />
         }
       </mat-card>
     }
@@ -114,7 +114,7 @@
                 <th class="row-label">{{ row.kind === 'stronghold' ? 'Stronghold' : 'Fortress' }} {{ row.number }}</th>
                 @for (reward of row.schedule; track $index) {
                   <td [class.current-phase]="$index + 1 === currentPhase()">
-                    <span class="reward-chip" [style.background]="rewardInfo[reward].color">{{ rewardInfo[reward].label }}</span>
+                    <app-reward-chip [reward]="reward" />
                   </td>
                 }
               </tr>
