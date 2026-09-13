@@ -13,7 +13,7 @@ export class FortressService {
     return collectionData(q, { idField: 'id' }) as Observable<FortressHolding[]>;
   }
 
-  /** Sets which alliance a NAP vote assigned this building to (`null` for unclaimed). */
+  /** Sets which alliance this state's own process (see FortressSettings.rulesNote) assigned this building to (`null` for unclaimed). */
   async setHolder(stateId: string, kind: FortressKind, number: number, allianceId: string | null, updatedBy: string): Promise<void> {
     const id = fortressHoldingId(stateId, kind, number);
     await setDoc(doc(this.firestore, `fortress_holdings/${id}`), {
@@ -35,12 +35,21 @@ export class FortressService {
     return docData(doc(this.firestore, `fortress_settings/${stateId}`)) as Observable<FortressSettings | undefined>;
   }
 
+  /** Merge:true — never touches `rulesNote`, which is set independently (see setRulesNote below) and normally changes far less often than the anchor date does. */
   async setPhase1Start(stateId: string, phase1StartAt: number, updatedBy: string): Promise<void> {
-    await setDoc(doc(this.firestore, `fortress_settings/${stateId}`), {
-      stateId,
-      phase1StartAt,
-      updatedAt: Date.now(),
-      updatedBy,
-    } satisfies FortressSettings);
+    await setDoc(
+      doc(this.firestore, `fortress_settings/${stateId}`),
+      { stateId, phase1StartAt, updatedAt: Date.now(), updatedBy },
+      { merge: true },
+    );
+  }
+
+  /** How this state runs Fortress — see FortressSettings.rulesNote's doc comment. Merge:true, same reasoning as setPhase1Start above but for the other field. */
+  async setRulesNote(stateId: string, rulesNote: string, updatedBy: string): Promise<void> {
+    await setDoc(
+      doc(this.firestore, `fortress_settings/${stateId}`),
+      { stateId, rulesNote, updatedAt: Date.now(), updatedBy },
+      { merge: true },
+    );
   }
 }

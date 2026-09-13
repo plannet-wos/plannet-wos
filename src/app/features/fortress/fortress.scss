@@ -21,6 +21,53 @@
   margin-bottom: 16px;
 }
 
+.rules-card {
+  max-width: 700px;
+  margin-bottom: 16px;
+}
+
+.rules-text {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.rules-field {
+  width: 100%;
+}
+
+.rules-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.alliance-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.alliance-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.alliance-name {
+  font-weight: 500;
+  min-width: 140px;
+}
+
+.alliance-buildings {
+  opacity: 0.8;
+}
+
+.empty {
+  opacity: 0.6;
+  font-style: italic;
+}
+
 .phase-row {
   display: flex;
   align-items: center;
@@ -94,8 +141,29 @@
 
 // app-reward-chip is an inline-block flex item here — without this it'd stretch to the cell's
 // full width (flex's default cross-axis stretch), instead of sitting at its own content size.
-.cell app-reward-chip {
+.cell > app-reward-chip {
   align-self: flex-start;
+}
+
+// Every phase's reward for this one building, compact — the current phase visually lifted out
+// of the row rather than just tinted, so it reads at a glance even at this size.
+.reward-strip {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.reward-strip-item {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 4px;
+  opacity: 0.5;
+
+  &.current {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.12);
+    outline: 1px solid rgba(255, 255, 255, 0.3);
+  }
 }
 
 .schedule-card {

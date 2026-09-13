@@ -1,0 +1,55 @@
+<div class="map-wrap">
+  <svg class="map-bg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <polygon points="50,3 97,50 50,97 3,50" class="map-outline" />
+  </svg>
+
+  <div class="castle" style="left: 50%; top: 50%" title="Castle (for orientation only)">
+    <span class="castle-icon">🏰</span>
+  </div>
+
+  @for (m of strongholds; track m.number) {
+    <button
+      type="button"
+      class="marker stronghold"
+      [class.active]="isSelected('stronghold', m.number)"
+      [style.left.%]="STRONGHOLD_POSITIONS[$index].x"
+      [style.top.%]="STRONGHOLD_POSITIONS[$index].y"
+      (click)="select('stronghold', m)"
+    >
+      <span class="marker-number">SH{{ m.number }}</span>
+      <app-reward-chip [reward]="m.schedule[m.currentPhase - 1]" [compact]="true" />
+    </button>
+  }
+
+  @for (m of fortresses; track m.number) {
+    <button
+      type="button"
+      class="marker fortress"
+      [class.active]="isSelected('fortress', m.number)"
+      [style.left.%]="FORTRESS_POSITIONS[m.number].x"
+      [style.top.%]="FORTRESS_POSITIONS[m.number].y"
+      (click)="select('fortress', m)"
+    >
+      <span class="marker-number">{{ m.number }}</span>
+      <app-reward-chip [reward]="m.schedule[m.currentPhase - 1]" [compact]="true" />
+    </button>
+  }
+</div>
+
+@if (selected(); as sel) {
+  <div class="detail-panel">
+    <div class="detail-header">
+      <strong>{{ sel.kind === 'stronghold' ? 'Stronghold' : 'Fortress' }} {{ sel.marker.number }}</strong>
+      <span class="detail-alliance">{{ sel.marker.allianceLabel }}</span>
+      <button type="button" class="detail-close" (click)="selected.set(null)" aria-label="Close">✕</button>
+    </div>
+    <div class="detail-strip">
+      @for (reward of sel.marker.schedule; track $index) {
+        <div class="detail-strip-item" [class.current]="$index + 1 === sel.marker.currentPhase">
+          <app-reward-chip [reward]="reward" [compact]="true" />
+          <span class="detail-strip-phase">P{{ $index + 1 }}</span>
+        </div>
+      }
+    </div>
+  </div>
+}

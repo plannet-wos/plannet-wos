@@ -34,6 +34,7 @@ import {
   FORTRESS_REWARD_SCHEDULE,
 } from '../../core/constants/fortress-rewards';
 import { RewardChipComponent } from '../../shared/reward-chip/reward-chip';
+import { FortressMapComponent, MapMarker } from './fortress-map/fortress-map';
 
 /** One grid cell — a building number paired with whatever holding doc (if any) exists for it, plus its reward for the state's current phase. */
 interface BuildingCell {
@@ -41,6 +42,14 @@ interface BuildingCell {
   number: number;
   holding: FortressHolding | undefined;
   reward: RewardKey | undefined;
+}
+
+/** One alliance's worth of buildings — see fortress.ts's allianceSummary() doc comment. */
+interface AllianceSummary {
+  allianceId: string;
+  name: string;
+  strongholds: number[];
+  fortresses: number[];
 }
 
 @Component({
@@ -57,6 +66,7 @@ interface BuildingCell {
     MatSnackBarModule,
     MatToolbarModule,
     RewardChipComponent,
+    FortressMapComponent,
   ],
   templateUrl: './fortress.html',
   styleUrl: './fortress.scss',
@@ -72,6 +82,10 @@ export class FortressComponent {
   readonly account = this.auth.account;
   readonly isAuthenticated = this.auth.isAuthenticated;
   readonly phases = Array.from({ length: PHASE_COUNT }, (_, i) => i + 1);
+  // Template-usable handles onto the raw schedules, for each cell's own reward-strip (the full
+  // 8-phase table further down uses scheduleRows() instead, which already has both kinds merged).
+  readonly STRONGHOLD_REWARD_SCHEDULE = STRONGHOLD_REWARD_SCHEDULE;
+  readonly FORTRESS_REWARD_SCHEDULE = FORTRESS_REWARD_SCHEDULE;
 
   // Public page — no route guard (see app.routes.ts) — but editing is state_admin/superadmin
   // only, scoped to their own state, same threshold as state-admin.ts's own canManage-style
@@ -128,6 +142,44 @@ export class FortressComponent {
   readonly strongholds = computed(() => this.buildRow('stronghold', STRONGHOLD_COUNT));
   readonly fortresses = computed(() => this.buildRow('fortress', FORTRESS_COUNT));
 
+  /**
+   * "Which F/SH does MY alliance play for" — the thing a regular player actually opens this page
+   * to check — grouped by alliance instead of by building, so they don't have to scan all 16
+   * cards to find their own. Only alliances holding at least one building appear; unclaimed
+   * buildings aren't a row here (the board below already shows those plainly enough). Purely a
+   * different view of `holdings` — no separate data to keep in sync.
+   */
+  readonly allianceSummary = computed<AllianceSummary[]>(() => {
+    const byAlliance = new Map<string, AllianceSummary>();
+    for (const h of this.holdings()) {
+      if (!h.allianceId) continue;
+      let entry = byAlliance.get(h.allianceId);
+      if (!entry) {
+        entry = { allianceId: h.allianceId, name: this.allianceLabel(h.allianceId), strongholds: [], fortresses: [] };
+        byAlliance.set(h.allianceId, entry);
+      }
+      (h.kind === 'stronghold' ? entry.strongholds : entry.fortresses).push(h.number);
+    }
+    for (const entry of byAlliance.values()) {
+      entry.strongholds.sort((a, b) => a - b);
+      entry.fortresses.sort((a, b) => a - b);
+    }
+    return [...byAlliance.values()].sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+  private toMapMarker(cell: BuildingCell): MapMarker {
+    const schedule = (cell.kind === 'stronghold' ? STRONGHOLD_REWARD_SCHEDULE : FORTRESS_REWARD_SCHEDULE)[cell.number];
+    return {
+      number: cell.number,
+      allianceLabel: this.allianceLabel(cell.holding?.allianceId ?? null),
+      schedule,
+      currentPhase: this.currentPhase(),
+    };
+  }
+
+  readonly mapStrongholds = computed(() => this.strongholds().map((c) => this.toMapMarker(c)));
+  readonly mapFortresses = computed(() => this.fortresses().map((c) => this.toMapMarker(c)));
+
   // The full 8-phase reference table (like the community-made schedule this was transcribed
   // from) — every building's reward across every phase, not just the current one, so admins can
   // plan ahead before the NAP vote for the next phase.
@@ -146,6 +198,27 @@ export class FortressComponent {
     if (!uid || !this.canEdit()) return;
     try {
       await this.fortress.setHolder(this.stateId, cell.kind, cell.number, allianceId || null, uid);
+    } catch (err) {
+      this.snackBar.open((err as Error).message, '', { duration: 3000 });
+    }
+  }
+
+  // --- "how this state runs Fortress" blurb (state_admin-authored, see FortressSettings.rulesNote) ---
+  readonly rulesNote = computed(() => this.settings()?.rulesNote ?? '');
+  showRulesNoteForm = signal(false);
+  rulesNoteInput = '';
+
+  openRulesNoteForm(): void {
+    this.rulesNoteInput = this.rulesNote();
+    this.showRulesNoteForm.set(true);
+  }
+
+  async saveRulesNote(): Promise<void> {
+    const uid = this.account()?.uid;
+    if (!uid || !this.canEdit()) return;
+    try {
+      await this.fortress.setRulesNote(this.stateId, this.rulesNoteInput.trim(), uid);
+      this.showRulesNoteForm.set(false);
     } catch (err) {
       this.snackBar.open((err as Error).message, '', { duration: 3000 });
     }

@@ -1,8 +1,12 @@
 @if (rewardInfo[reward].icon) {
-  <span class="reward-chip icon" [title]="rewardInfo[reward].label">
+  <span class="reward-chip icon" [class.compact]="compact" [title]="rewardInfo[reward].label">
     <img [src]="rewardInfo[reward].icon" [alt]="rewardInfo[reward].label" />
-    <span class="reward-label">{{ rewardInfo[reward].label }}</span>
+    @if (!compact) {
+      <span class="reward-label">{{ rewardInfo[reward].label }}</span>
+    }
   </span>
+} @else if (compact) {
+  <span class="reward-dot" [style.background]="rewardInfo[reward].color" [title]="rewardInfo[reward].label"></span>
 } @else {
   <span class="reward-chip" [style.background]="rewardInfo[reward].color">{{ rewardInfo[reward].label }}</span>
 }
