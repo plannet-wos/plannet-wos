@@ -22,19 +22,32 @@
   </p>
 
   <div class="phase-row">
-    <span class="phase-label">Current phase:</span>
-    @if (canEdit()) {
-      <mat-form-field appearance="outline" class="phase-select">
-        <mat-select [value]="currentPhase()" (selectionChange)="setPhase($event.value)">
-          @for (p of phases; track p) {
-            <mat-option [value]="p">Phase {{ p }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-    } @else {
-      <span class="phase-value">Phase {{ currentPhase() }} of {{ phases.length }}</span>
+    <span class="phase-value">
+      Phase {{ currentPhase() }} of 8 — ends Friday, {{ phaseInfo().phaseEndAt | date: 'MMM d' : 'UTC' }}
+    </span>
+    @if (canEdit() && !showAnchorForm()) {
+      <button mat-button (click)="openAnchorForm()">Wrong phase?</button>
     }
   </div>
+
+  @if (showAnchorForm()) {
+    <mat-card class="anchor-form-card">
+      <mat-card-content>
+        <p class="hint">
+          The phase is computed automatically from this date — the Saturday phase 1 of the current 8-week cycle
+          began. Only change this if the state's actual Fortress calendar has drifted from what's shown above.
+        </p>
+        <div class="anchor-form-row">
+          <mat-form-field appearance="outline">
+            <mat-label>Phase 1 started (Saturday)</mat-label>
+            <input matInput type="date" [(ngModel)]="anchorDateInput" />
+          </mat-form-field>
+          <button mat-flat-button color="primary" (click)="saveAnchor()">Save</button>
+          <button mat-button (click)="showAnchorForm.set(false)">Cancel</button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
 
   <h2 class="section-title">Strongholds</h2>
   <p class="hint">4 total.</p>

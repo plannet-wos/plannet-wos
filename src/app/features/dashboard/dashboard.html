@@ -143,6 +143,17 @@
           </mat-card-content>
         </mat-card>
       }
+      @if (canUseFortress()) {
+        <mat-card class="app-tile" (click)="goToFortress()">
+          <div class="tile-icon" style="background: #455a64">
+            <mat-icon>castle</mat-icon>
+          </div>
+          <mat-card-content>
+            <h3>Fortress</h3>
+            <p>See which alliance holds each Stronghold and Fortress, decided by NAP vote</p>
+          </mat-card-content>
+        </mat-card>
+      }
     </div>
   }
 </div>

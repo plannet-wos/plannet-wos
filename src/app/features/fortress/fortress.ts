@@ -1,10 +1,12 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -22,7 +24,15 @@ import {
   fortressHoldingId,
 } from '../../core/models/fortress-holding.model';
 import { Alliance } from '../../core/models/alliance.model';
-import { PHASE_COUNT, RewardKey, rewardForPhase, STRONGHOLD_REWARD_SCHEDULE, FORTRESS_REWARD_SCHEDULE } from '../../core/constants/fortress-rewards';
+import {
+  DEFAULT_PHASE1_START_MS,
+  PHASE_COUNT,
+  RewardKey,
+  currentPhaseInfo,
+  rewardForPhase,
+  STRONGHOLD_REWARD_SCHEDULE,
+  FORTRESS_REWARD_SCHEDULE,
+} from '../../core/constants/fortress-rewards';
 import { RewardChipComponent } from '../../shared/reward-chip/reward-chip';
 
 /** One grid cell — a building number paired with whatever holding doc (if any) exists for it, plus its reward for the state's current phase. */
@@ -37,10 +47,12 @@ interface BuildingCell {
   selector: 'app-fortress',
   imports: [
     FormsModule,
+    DatePipe,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
     MatIconModule,
+    MatInputModule,
     MatSelectModule,
     MatSnackBarModule,
     MatToolbarModule,
@@ -74,8 +86,19 @@ export class FortressComponent {
   private readonly alliances = toSignal(this.allianceService.listForState$(this.stateId), { initialValue: [] as Alliance[] });
   private readonly settings = toSignal(this.fortress.settings$(this.stateId), { initialValue: undefined as FortressSettings | undefined });
 
-  /** Defaults to phase 1 until a state admin has ever set one for this state. */
-  readonly currentPhase = computed(() => this.settings()?.currentPhase ?? 1);
+  // Ticks periodically so the phase (and the schedule's highlighted column) advances on its own
+  // across the Friday->Saturday boundary without needing a page reload — same idiom as nap.ts's
+  // own nowMs clock, just a much coarser interval since a phase only ever changes once a week.
+  private readonly nowMs = signal(Date.now());
+  constructor() {
+    setInterval(() => this.nowMs.set(Date.now()), 5 * 60_000);
+  }
+
+  private readonly phase1StartAt = computed(() => this.settings()?.phase1StartAt ?? DEFAULT_PHASE1_START_MS);
+
+  /** The phase (1-8) live right now — fully computed from the calendar, see fortress-rewards.ts's currentPhaseInfo(). */
+  readonly phaseInfo = computed(() => currentPhaseInfo(this.phase1StartAt(), this.nowMs()));
+  readonly currentPhase = computed(() => this.phaseInfo().phase);
 
   readonly allianceOptions = computed(() => [...this.alliances()].sort((a, b) => a.name.localeCompare(b.name)));
 
@@ -128,11 +151,32 @@ export class FortressComponent {
     }
   }
 
-  async setPhase(phase: number): Promise<void> {
+  // --- phase-1 anchor override (advanced, admin-only — see fortress.html's collapsed section) ---
+  showAnchorForm = signal(false);
+  anchorDateInput = '';
+
+  /** `<input type="date">`'s current value as YYYY-MM-DD, for prefilling the override form when it's opened. */
+  private anchorDateString(ms: number): string {
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+
+  openAnchorForm(): void {
+    this.anchorDateInput = this.anchorDateString(this.phase1StartAt());
+    this.showAnchorForm.set(true);
+  }
+
+  async saveAnchor(): Promise<void> {
     const uid = this.account()?.uid;
-    if (!uid || !this.canEdit()) return;
+    if (!uid || !this.canEdit() || !this.anchorDateInput) return;
+    // Parsed as calendar-date components rather than `new Date(str)` so this always lands on
+    // that date's UTC midnight regardless of the admin's own browser time zone — the phase
+    // system is defined entirely in UTC (see fortress-rewards.ts), and a local-time parse could
+    // silently shift the anchor by a day for anyone west of UTC.
+    const [year, month, day] = this.anchorDateInput.split('-').map(Number);
+    const phase1StartAt = Date.UTC(year, month - 1, day);
     try {
-      await this.fortress.setPhase(this.stateId, phase, uid);
+      await this.fortress.setPhase1Start(this.stateId, phase1StartAt, uid);
+      this.showAnchorForm.set(false);
     } catch (err) {
       this.snackBar.open((err as Error).message, '', { duration: 3000 });
     }

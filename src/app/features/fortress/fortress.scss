@@ -28,20 +28,21 @@
   margin-bottom: 8px;
 }
 
-.phase-label {
+.phase-value {
+  opacity: 0.85;
   font-weight: 500;
 }
 
-.phase-select {
-  width: 140px;
-  // squeeze the wasted hint/error subscript space, same idiom as .cell-field below
-  ::ng-deep .mat-mdc-form-field-subscript-wrapper {
-    display: none;
-  }
+.anchor-form-card {
+  max-width: 500px;
+  margin-bottom: 16px;
 }
 
-.phase-value {
-  opacity: 0.85;
+.anchor-form-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .section-title {
@@ -132,6 +133,6 @@
 
   th.current-phase,
   td.current-phase {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.12);
   }
 }
