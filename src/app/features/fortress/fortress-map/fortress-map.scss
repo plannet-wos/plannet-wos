@@ -102,6 +102,9 @@
 }
 
 .detail-close {
+  // always pinned to the far right, whether or not .detail-alliance's flex:1 is present
+  // (it's only rendered in read-only mode — see fortress-map.html).
+  margin-left: auto;
   background: none;
   border: none;
   color: inherit;
@@ -112,6 +115,17 @@
 
   &:hover {
     opacity: 1;
+  }
+}
+
+.detail-alliance-field {
+  width: 100%;
+  max-width: 300px;
+  margin-bottom: 4px;
+  // mat-form-field's default hint/error subscript space is wasted here, same idiom as
+  // fortress.scss's .cell-field.
+  ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+    display: none;
   }
 }
 

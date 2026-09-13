@@ -40,9 +40,22 @@
   <div class="detail-panel">
     <div class="detail-header">
       <strong>{{ sel.kind === 'stronghold' ? 'Stronghold' : 'Fortress' }} {{ sel.marker.number }}</strong>
-      <span class="detail-alliance">{{ sel.marker.allianceLabel }}</span>
+      @if (!canEdit) {
+        <span class="detail-alliance">{{ sel.marker.allianceLabel }}</span>
+      }
       <button type="button" class="detail-close" (click)="selected.set(null)" aria-label="Close">✕</button>
     </div>
+    @if (canEdit) {
+      <mat-form-field appearance="outline" class="detail-alliance-field">
+        <mat-label>Alliance</mat-label>
+        <mat-select [value]="sel.marker.allianceId ?? ''" (selectionChange)="onAssign(sel.kind, sel.marker.number, $event.value)">
+          <mat-option value="">Unclaimed</mat-option>
+          @for (a of allianceOptions; track a.id) {
+            <mat-option [value]="a.id">{{ a.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    }
     <div class="detail-strip">
       @for (reward of sel.marker.schedule; track $index) {
         <div class="detail-strip-item" [class.current]="$index + 1 === sel.marker.currentPhase">

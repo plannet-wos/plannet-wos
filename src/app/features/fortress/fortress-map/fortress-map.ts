@@ -1,14 +1,26 @@
-import { Component, Input, signal } from '@angular/core';
+import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 import { RewardKey } from '../../../core/constants/fortress-rewards';
 import { RewardChipComponent } from '../../../shared/reward-chip/reward-chip';
+
+export type BuildingKind = 'stronghold' | 'fortress';
 
 /** One marker's worth of display data — deliberately just plain resolved values (not a FortressHolding/Alliance), so this component has no service dependencies of its own; fortress.ts does the resolving. */
 export interface MapMarker {
   number: number;
+  allianceId: string | null;
   allianceLabel: string;
   /** This building's reward across all 8 phases, in phase order — index 0 is phase 1. */
   schedule: RewardKey[];
   currentPhase: number;
+}
+
+export interface AssignEvent {
+  kind: BuildingKind;
+  number: number;
+  allianceId: string;
 }
 
 interface Point {
@@ -27,19 +39,24 @@ interface Point {
  *
  * Positions are fixed design constants (STRONGHOLD_POSITIONS/FORTRESS_POSITIONS below), not
  * computed from real coordinates — there's no per-state layout to vary, every state's board is
- * the same 4+12 shape. Purely a read-only overview: tapping a marker opens this component's own
- * detail panel (alliance + the full 8-phase reward strip, current phase highlighted) rather than
- * anything editable — the existing board cards below stay the one place assignments get changed.
+ * the same 4+12 shape. This is now the ONE place assignments are viewed AND changed (the
+ * separate 16-card grid it used to sit above was dropped as redundant, see fortress.ts's git
+ * history) — tapping a marker opens this component's own detail panel with the full 8-phase
+ * reward strip, current phase highlighted, and, for a state_admin/superadmin (`canEdit`), an
+ * alliance dropdown that emits `assign` for fortress.ts to actually write.
  */
 @Component({
   selector: 'app-fortress-map',
-  imports: [RewardChipComponent],
+  imports: [FormsModule, MatFormFieldModule, MatSelectModule, RewardChipComponent],
   templateUrl: './fortress-map.html',
   styleUrl: './fortress-map.scss',
 })
 export class FortressMapComponent {
   @Input({ required: true }) strongholds: MapMarker[] = [];
   @Input({ required: true }) fortresses: MapMarker[] = [];
+  @Input() canEdit = false;
+  @Input() allianceOptions: { id: string; name: string }[] = [];
+  @Output() assign = new EventEmitter<AssignEvent>();
 
   // Clustered around the castle in the same rough diamond arrangement the source screenshot
   // showed (a Stronghold pair above the castle, a pair below) — the source didn't number them,
@@ -69,16 +86,20 @@ export class FortressMapComponent {
     return positions;
   })();
 
-  readonly selected = signal<{ kind: 'stronghold' | 'fortress'; marker: MapMarker } | null>(null);
+  readonly selected = signal<{ kind: BuildingKind; marker: MapMarker } | null>(null);
 
-  select(kind: 'stronghold' | 'fortress', marker: MapMarker): void {
+  select(kind: BuildingKind, marker: MapMarker): void {
     const current = this.selected();
     // Tapping the same marker again closes the panel instead of just re-opening it to itself.
     this.selected.set(current?.kind === kind && current.marker.number === marker.number ? null : { kind, marker });
   }
 
-  isSelected(kind: 'stronghold' | 'fortress', number: number): boolean {
+  isSelected(kind: BuildingKind, number: number): boolean {
     const current = this.selected();
     return current?.kind === kind && current.marker.number === number;
+  }
+
+  onAssign(kind: BuildingKind, number: number, allianceId: string): void {
+    this.assign.emit({ kind, number, allianceId });
   }
 }

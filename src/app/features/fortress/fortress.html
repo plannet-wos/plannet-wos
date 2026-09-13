@@ -76,102 +76,20 @@
   }
 
   <h2 class="section-title">Map</h2>
-  <p class="hint">Tap a building for its full 8-phase reward schedule.</p>
-  <app-fortress-map [strongholds]="mapStrongholds()" [fortresses]="mapFortresses()" />
-
-  <h2 class="section-title">Your alliance's buildings</h2>
-  @if (allianceSummary().length === 0) {
-    <p class="empty">Nothing's been assigned yet.</p>
-  } @else {
-    <div class="alliance-summary">
-      @for (a of allianceSummary(); track a.allianceId) {
-        <div class="alliance-row">
-          <span class="alliance-name">{{ a.name }}</span>
-          <span class="alliance-buildings">
-            @if (a.strongholds.length > 0) {
-              Stronghold {{ a.strongholds.join(', ') }}
-            }
-            @if (a.strongholds.length > 0 && a.fortresses.length > 0) {
-              &middot;
-            }
-            @if (a.fortresses.length > 0) {
-              Fortress {{ a.fortresses.join(', ') }}
-            }
-          </span>
-        </div>
-      }
-    </div>
-  }
-
-  <h2 class="section-title">Strongholds</h2>
-  <p class="hint">4 total.</p>
-  <div class="board">
-    @for (cell of strongholds(); track trackCell($index, cell)) {
-      <mat-card class="cell">
-        <div class="cell-number">Stronghold {{ cell.number }}</div>
-        @if (canEdit()) {
-          <mat-form-field appearance="outline" class="cell-field">
-            <mat-label>Alliance</mat-label>
-            <mat-select [value]="cell.holding?.allianceId ?? ''" (selectionChange)="assign(cell, $event.value)">
-              <mat-option value="">Unclaimed</mat-option>
-              @for (a of allianceOptions(); track a.id) {
-                <mat-option [value]="a.id">{{ a.name }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-        } @else {
-          <div class="cell-holder" [class.unclaimed]="!cell.holding?.allianceId">
-            {{ allianceLabel(cell.holding?.allianceId ?? null) }}
-          </div>
-        }
-        @if (cell.reward) {
-          <app-reward-chip [reward]="cell.reward" />
-        }
-        <div class="reward-strip">
-          @for (reward of STRONGHOLD_REWARD_SCHEDULE[cell.number]; track $index) {
-            <span class="reward-strip-item" [class.current]="$index + 1 === currentPhase()">
-              <app-reward-chip [reward]="reward" [compact]="true" />
-            </span>
-          }
-        </div>
-      </mat-card>
+  <p class="hint">
+    @if (canEdit()) {
+      Tap a building to see who holds it, its full 8-phase reward schedule, or to change its assignment.
+    } @else {
+      Tap a building to see who holds it and its full 8-phase reward schedule.
     }
-  </div>
-
-  <h2 class="section-title">Fortresses</h2>
-  <p class="hint">12 total.</p>
-  <div class="board">
-    @for (cell of fortresses(); track trackCell($index, cell)) {
-      <mat-card class="cell">
-        <div class="cell-number">Fortress {{ cell.number }}</div>
-        @if (canEdit()) {
-          <mat-form-field appearance="outline" class="cell-field">
-            <mat-label>Alliance</mat-label>
-            <mat-select [value]="cell.holding?.allianceId ?? ''" (selectionChange)="assign(cell, $event.value)">
-              <mat-option value="">Unclaimed</mat-option>
-              @for (a of allianceOptions(); track a.id) {
-                <mat-option [value]="a.id">{{ a.name }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-        } @else {
-          <div class="cell-holder" [class.unclaimed]="!cell.holding?.allianceId">
-            {{ allianceLabel(cell.holding?.allianceId ?? null) }}
-          </div>
-        }
-        @if (cell.reward) {
-          <app-reward-chip [reward]="cell.reward" />
-        }
-        <div class="reward-strip">
-          @for (reward of FORTRESS_REWARD_SCHEDULE[cell.number]; track $index) {
-            <span class="reward-strip-item" [class.current]="$index + 1 === currentPhase()">
-              <app-reward-chip [reward]="reward" [compact]="true" />
-            </span>
-          }
-        </div>
-      </mat-card>
-    }
-  </div>
+  </p>
+  <app-fortress-map
+    [strongholds]="mapStrongholds()"
+    [fortresses]="mapFortresses()"
+    [canEdit]="canEdit()"
+    [allianceOptions]="allianceOptions()"
+    (assign)="onMapAssign($event)"
+  />
 
   <mat-card class="schedule-card">
     <mat-card-header>

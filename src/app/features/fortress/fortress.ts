@@ -7,7 +7,6 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { FormsModule } from '@angular/forms';
@@ -15,41 +14,23 @@ import { AuthService } from '../../core/services/auth.service';
 import { FortressService } from '../../core/services/fortress.service';
 import { AllianceService } from '../../core/services/alliance.service';
 import { RANK } from '../../core/constants/roles';
-import {
-  FortressHolding,
-  FortressKind,
-  FortressSettings,
-  STRONGHOLD_COUNT,
-  FORTRESS_COUNT,
-  fortressHoldingId,
-} from '../../core/models/fortress-holding.model';
+import { FortressHolding, FortressKind, FortressSettings, STRONGHOLD_COUNT, FORTRESS_COUNT } from '../../core/models/fortress-holding.model';
 import { Alliance } from '../../core/models/alliance.model';
 import {
   DEFAULT_PHASE1_START_MS,
   PHASE_COUNT,
-  RewardKey,
   currentPhaseInfo,
-  rewardForPhase,
   STRONGHOLD_REWARD_SCHEDULE,
   FORTRESS_REWARD_SCHEDULE,
 } from '../../core/constants/fortress-rewards';
 import { RewardChipComponent } from '../../shared/reward-chip/reward-chip';
-import { FortressMapComponent, MapMarker } from './fortress-map/fortress-map';
+import { AssignEvent, FortressMapComponent, MapMarker } from './fortress-map/fortress-map';
 
-/** One grid cell — a building number paired with whatever holding doc (if any) exists for it, plus its reward for the state's current phase. */
+/** One building — a number paired with whatever holding doc (if any) exists for it. Feeds the map's markers; there's no separate grid anymore (see git history). */
 interface BuildingCell {
   kind: FortressKind;
   number: number;
   holding: FortressHolding | undefined;
-  reward: RewardKey | undefined;
-}
-
-/** One alliance's worth of buildings — see fortress.ts's allianceSummary() doc comment. */
-interface AllianceSummary {
-  allianceId: string;
-  name: string;
-  strongholds: number[];
-  fortresses: number[];
 }
 
 @Component({
@@ -62,7 +43,6 @@ interface AllianceSummary {
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
-    MatSelectModule,
     MatSnackBarModule,
     MatToolbarModule,
     RewardChipComponent,
@@ -82,10 +62,6 @@ export class FortressComponent {
   readonly account = this.auth.account;
   readonly isAuthenticated = this.auth.isAuthenticated;
   readonly phases = Array.from({ length: PHASE_COUNT }, (_, i) => i + 1);
-  // Template-usable handles onto the raw schedules, for each cell's own reward-strip (the full
-  // 8-phase table further down uses scheduleRows() instead, which already has both kinds merged).
-  readonly STRONGHOLD_REWARD_SCHEDULE = STRONGHOLD_REWARD_SCHEDULE;
-  readonly FORTRESS_REWARD_SCHEDULE = FORTRESS_REWARD_SCHEDULE;
 
   // Public page — no route guard (see app.routes.ts) — but editing is state_admin/superadmin
   // only, scoped to their own state, same threshold as state-admin.ts's own canManage-style
@@ -130,47 +106,17 @@ export class FortressComponent {
         .filter((h) => h.kind === kind)
         .map((h) => [h.number, h]),
     );
-    const phase = this.currentPhase();
-    return Array.from({ length: count }, (_, i) => i + 1).map((number) => ({
-      kind,
-      number,
-      holding: byNumber.get(number),
-      reward: rewardForPhase(kind, number, phase),
-    }));
+    return Array.from({ length: count }, (_, i) => i + 1).map((number) => ({ kind, number, holding: byNumber.get(number) }));
   }
 
   readonly strongholds = computed(() => this.buildRow('stronghold', STRONGHOLD_COUNT));
   readonly fortresses = computed(() => this.buildRow('fortress', FORTRESS_COUNT));
 
-  /**
-   * "Which F/SH does MY alliance play for" — the thing a regular player actually opens this page
-   * to check — grouped by alliance instead of by building, so they don't have to scan all 16
-   * cards to find their own. Only alliances holding at least one building appear; unclaimed
-   * buildings aren't a row here (the board below already shows those plainly enough). Purely a
-   * different view of `holdings` — no separate data to keep in sync.
-   */
-  readonly allianceSummary = computed<AllianceSummary[]>(() => {
-    const byAlliance = new Map<string, AllianceSummary>();
-    for (const h of this.holdings()) {
-      if (!h.allianceId) continue;
-      let entry = byAlliance.get(h.allianceId);
-      if (!entry) {
-        entry = { allianceId: h.allianceId, name: this.allianceLabel(h.allianceId), strongholds: [], fortresses: [] };
-        byAlliance.set(h.allianceId, entry);
-      }
-      (h.kind === 'stronghold' ? entry.strongholds : entry.fortresses).push(h.number);
-    }
-    for (const entry of byAlliance.values()) {
-      entry.strongholds.sort((a, b) => a - b);
-      entry.fortresses.sort((a, b) => a - b);
-    }
-    return [...byAlliance.values()].sort((a, b) => a.name.localeCompare(b.name));
-  });
-
   private toMapMarker(cell: BuildingCell): MapMarker {
     const schedule = (cell.kind === 'stronghold' ? STRONGHOLD_REWARD_SCHEDULE : FORTRESS_REWARD_SCHEDULE)[cell.number];
     return {
       number: cell.number,
+      allianceId: cell.holding?.allianceId ?? null,
       allianceLabel: this.allianceLabel(cell.holding?.allianceId ?? null),
       schedule,
       currentPhase: this.currentPhase(),
@@ -182,22 +128,18 @@ export class FortressComponent {
 
   // The full 8-phase reference table (like the community-made schedule this was transcribed
   // from) — every building's reward across every phase, not just the current one, so admins can
-  // plan ahead before the NAP vote for the next phase.
+  // plan ahead before the next allocation round.
   readonly scheduleRows = computed(() => [
     ...Array.from({ length: STRONGHOLD_COUNT }, (_, i) => ({ kind: 'stronghold' as const, number: i + 1, schedule: STRONGHOLD_REWARD_SCHEDULE[i + 1] })),
     ...Array.from({ length: FORTRESS_COUNT }, (_, i) => ({ kind: 'fortress' as const, number: i + 1, schedule: FORTRESS_REWARD_SCHEDULE[i + 1] })),
   ]);
 
-  trackCell(_index: number, cell: BuildingCell): string {
-    return fortressHoldingId(this.stateId, cell.kind, cell.number);
-  }
-
-  /** Who the NAP vote assigned this building to — set from the alliance dropdown. */
-  async assign(cell: BuildingCell, allianceId: string): Promise<void> {
+  /** Handles the map's (assign) output — who this state's own process assigned a building to. */
+  async onMapAssign(event: AssignEvent): Promise<void> {
     const uid = this.account()?.uid;
     if (!uid || !this.canEdit()) return;
     try {
-      await this.fortress.setHolder(this.stateId, cell.kind, cell.number, allianceId || null, uid);
+      await this.fortress.setHolder(this.stateId, event.kind, event.number, event.allianceId || null, uid);
     } catch (err) {
       this.snackBar.open((err as Error).message, '', { duration: 3000 });
     }
