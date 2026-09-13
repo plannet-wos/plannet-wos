@@ -7,7 +7,6 @@ import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { FormsModule } from '@angular/forms';
@@ -15,32 +14,23 @@ import { AuthService } from '../../core/services/auth.service';
 import { FortressService } from '../../core/services/fortress.service';
 import { AllianceService } from '../../core/services/alliance.service';
 import { RANK } from '../../core/constants/roles';
-import {
-  FortressHolding,
-  FortressKind,
-  FortressSettings,
-  STRONGHOLD_COUNT,
-  FORTRESS_COUNT,
-  fortressHoldingId,
-} from '../../core/models/fortress-holding.model';
+import { FortressHolding, FortressKind, FortressSettings, STRONGHOLD_COUNT, FORTRESS_COUNT } from '../../core/models/fortress-holding.model';
 import { Alliance } from '../../core/models/alliance.model';
 import {
   DEFAULT_PHASE1_START_MS,
   PHASE_COUNT,
-  RewardKey,
   currentPhaseInfo,
-  rewardForPhase,
   STRONGHOLD_REWARD_SCHEDULE,
   FORTRESS_REWARD_SCHEDULE,
 } from '../../core/constants/fortress-rewards';
 import { RewardChipComponent } from '../../shared/reward-chip/reward-chip';
+import { AssignEvent, FortressMapComponent, MapMarker } from './fortress-map/fortress-map';
 
-/** One grid cell — a building number paired with whatever holding doc (if any) exists for it, plus its reward for the state's current phase. */
+/** One building — a number paired with whatever holding doc (if any) exists for it. Feeds the map's markers; there's no separate grid anymore (see git history). */
 interface BuildingCell {
   kind: FortressKind;
   number: number;
   holding: FortressHolding | undefined;
-  reward: RewardKey | undefined;
 }
 
 @Component({
@@ -53,10 +43,10 @@ interface BuildingCell {
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
-    MatSelectModule,
     MatSnackBarModule,
     MatToolbarModule,
     RewardChipComponent,
+    FortressMapComponent,
   ],
   templateUrl: './fortress.html',
   styleUrl: './fortress.scss',
@@ -116,36 +106,61 @@ export class FortressComponent {
         .filter((h) => h.kind === kind)
         .map((h) => [h.number, h]),
     );
-    const phase = this.currentPhase();
-    return Array.from({ length: count }, (_, i) => i + 1).map((number) => ({
-      kind,
-      number,
-      holding: byNumber.get(number),
-      reward: rewardForPhase(kind, number, phase),
-    }));
+    return Array.from({ length: count }, (_, i) => i + 1).map((number) => ({ kind, number, holding: byNumber.get(number) }));
   }
 
   readonly strongholds = computed(() => this.buildRow('stronghold', STRONGHOLD_COUNT));
   readonly fortresses = computed(() => this.buildRow('fortress', FORTRESS_COUNT));
 
+  private toMapMarker(cell: BuildingCell): MapMarker {
+    const schedule = (cell.kind === 'stronghold' ? STRONGHOLD_REWARD_SCHEDULE : FORTRESS_REWARD_SCHEDULE)[cell.number];
+    return {
+      number: cell.number,
+      allianceId: cell.holding?.allianceId ?? null,
+      allianceLabel: this.allianceLabel(cell.holding?.allianceId ?? null),
+      schedule,
+      currentPhase: this.currentPhase(),
+    };
+  }
+
+  readonly mapStrongholds = computed(() => this.strongholds().map((c) => this.toMapMarker(c)));
+  readonly mapFortresses = computed(() => this.fortresses().map((c) => this.toMapMarker(c)));
+
   // The full 8-phase reference table (like the community-made schedule this was transcribed
   // from) — every building's reward across every phase, not just the current one, so admins can
-  // plan ahead before the NAP vote for the next phase.
+  // plan ahead before the next allocation round.
   readonly scheduleRows = computed(() => [
     ...Array.from({ length: STRONGHOLD_COUNT }, (_, i) => ({ kind: 'stronghold' as const, number: i + 1, schedule: STRONGHOLD_REWARD_SCHEDULE[i + 1] })),
     ...Array.from({ length: FORTRESS_COUNT }, (_, i) => ({ kind: 'fortress' as const, number: i + 1, schedule: FORTRESS_REWARD_SCHEDULE[i + 1] })),
   ]);
 
-  trackCell(_index: number, cell: BuildingCell): string {
-    return fortressHoldingId(this.stateId, cell.kind, cell.number);
-  }
-
-  /** Who the NAP vote assigned this building to — set from the alliance dropdown. */
-  async assign(cell: BuildingCell, allianceId: string): Promise<void> {
+  /** Handles the map's (assign) output — who this state's own process assigned a building to. */
+  async onMapAssign(event: AssignEvent): Promise<void> {
     const uid = this.account()?.uid;
     if (!uid || !this.canEdit()) return;
     try {
-      await this.fortress.setHolder(this.stateId, cell.kind, cell.number, allianceId || null, uid);
+      await this.fortress.setHolder(this.stateId, event.kind, event.number, event.allianceId || null, uid);
+    } catch (err) {
+      this.snackBar.open((err as Error).message, '', { duration: 3000 });
+    }
+  }
+
+  // --- "how this state runs Fortress" blurb (state_admin-authored, see FortressSettings.rulesNote) ---
+  readonly rulesNote = computed(() => this.settings()?.rulesNote ?? '');
+  showRulesNoteForm = signal(false);
+  rulesNoteInput = '';
+
+  openRulesNoteForm(): void {
+    this.rulesNoteInput = this.rulesNote();
+    this.showRulesNoteForm.set(true);
+  }
+
+  async saveRulesNote(): Promise<void> {
+    const uid = this.account()?.uid;
+    if (!uid || !this.canEdit()) return;
+    try {
+      await this.fortress.setRulesNote(this.stateId, this.rulesNoteInput.trim(), uid);
+      this.showRulesNoteForm.set(false);
     } catch (err) {
       this.snackBar.open((err as Error).message, '', { duration: 3000 });
     }

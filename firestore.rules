@@ -406,20 +406,27 @@ service cloud.firestore {
         && (myRank() == 0 || myAccount().stateId == resource.data.stateId);
     }
 
-    // One doc per state (doc ID == stateId) holding just the phase-1 anchor date used to compute
-    // which phase of Fortress's fixed 8-phase reward schedule (see fortress-rewards.ts) the
-    // state is currently on — the phase itself is never stored, only derived from this plus the
-    // current time, so there's nothing to keep flipping week to week. Different states can be on
-    // different calendars, hence a doc per state rather than a global constant. Same
-    // read-open/write-state_admin+ shape as fortress_holdings above.
+    // One doc per state (doc ID == stateId) holding this state's own Fortress settings:
+    // `phase1StartAt`, the anchor date used to compute which phase of the fixed 8-phase reward
+    // schedule (see fortress-rewards.ts) the state is currently on — the phase itself is never
+    // stored, only derived from this plus the current time — and `rulesNote`, free text
+    // describing how THIS state actually decides who gets which building (a vote, fighting,
+    // whatever), since that's entirely up to the state and not something rules can validate
+    // beyond a shape/length check. The two are written independently (FortressService.
+    // setPhase1Start()/setRulesNote(), each a merge:true write) so both are optional here, same
+    // "absent key" idiom accounts' own nickname clause uses elsewhere in this file. Different
+    // states can be on different calendars/processes, hence a doc per state rather than a global
+    // constant. Same read-open/write-state_admin+ shape as fortress_holdings above.
     match /fortress_settings/{stateId} {
       allow read: if true;
 
       allow create, update: if isActiveAccount() && myRank() <= 1
         && (myRank() == 0 || myAccount().stateId == stateId)
-        && request.resource.data.keys().hasOnly(['stateId', 'phase1StartAt', 'updatedAt', 'updatedBy'])
+        && request.resource.data.keys().hasOnly(['stateId', 'phase1StartAt', 'rulesNote', 'updatedAt', 'updatedBy'])
         && request.resource.data.stateId == stateId
-        && request.resource.data.phase1StartAt is number
+        && (!('phase1StartAt' in request.resource.data) || request.resource.data.phase1StartAt is number)
+        && (!('rulesNote' in request.resource.data)
+              || (request.resource.data.rulesNote is string && request.resource.data.rulesNote.size() <= 1000))
         && request.resource.data.updatedAt is number
         && request.resource.data.updatedBy == request.auth.uid;
 

@@ -21,6 +21,25 @@
   margin-bottom: 16px;
 }
 
+.rules-card {
+  max-width: 700px;
+  margin-bottom: 16px;
+}
+
+.rules-text {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.rules-field {
+  width: 100%;
+}
+
+.rules-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .phase-row {
   display: flex;
   align-items: center;
@@ -54,48 +73,6 @@
   opacity: 0.6;
   font-style: italic;
   margin-top: 0;
-}
-
-.board {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.cell {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.cell-number {
-  font-weight: 500;
-}
-
-.cell-field {
-  width: 100%;
-  // mat-form-field's default bottom padding for hint/error space is wasted here — these cells
-  // never show either, so squeezing it back keeps the grid's cards from ballooning in height.
-  ::ng-deep .mat-mdc-form-field-subscript-wrapper {
-    display: none;
-  }
-}
-
-.cell-holder {
-  opacity: 0.85;
-
-  &.unclaimed {
-    opacity: 0.5;
-    font-style: italic;
-  }
-}
-
-// app-reward-chip is an inline-block flex item here — without this it'd stretch to the cell's
-// full width (flex's default cross-axis stretch), instead of sitting at its own content size.
-.cell app-reward-chip {
-  align-self: flex-start;
 }
 
 .schedule-card {

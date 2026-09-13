@@ -22,6 +22,12 @@
     padding: 2px 8px 2px 2px;
   }
 
+  &.icon.compact {
+    // just the bare icon, no padding/background pill — see reward-chip.ts's compact doc comment.
+    background: none;
+    padding: 0;
+  }
+
   img {
     width: 20px;
     height: 20px;
@@ -32,7 +38,23 @@
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
   }
 
+  .compact img {
+    width: 16px;
+    height: 16px;
+  }
+
   .reward-label {
     color: var(--mat-sys-on-surface, #e0e0e0);
   }
+}
+
+// Compact fallback for a reward with no icon (see reward-chip.html) — a plain color swatch, same
+// spirit as the "compact" icon variant above: identity moves to the title tooltip, since this
+// always sits beside the same reward shown at full size with its label visible.
+.reward-dot {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
