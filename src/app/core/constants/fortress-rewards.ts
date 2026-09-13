@@ -45,7 +45,7 @@ export const REWARD_INFO: Record<RewardKey, RewardInfo> = {
   gear_xp: { label: 'Gear XP', color: '#eb6834', icon: 'fortress/gear-xp.png' },
   deployment: { label: 'Deployment', color: '#008300' },
   pet_chest: { label: 'Pet Chest', color: '#4fb8a8', icon: 'fortress/pet-chest.jpg' },
-  hero_gear: { label: 'Hero Gear', color: '#c9a227' },
+  hero_gear: { label: 'Hero Gear', color: '#c9a227', icon: 'fortress/hero-gear.jpg' },
   fire_crystal: { label: 'Fire Crystal', color: '#b5651d', icon: 'fortress/fire-crystal.png' },
 };
 
