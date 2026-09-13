@@ -1,17 +1,21 @@
 /**
- * Fortress Battles is a global Whiteout Survival mechanic (identical rules in every state):
- * each state's world map carries 4 Strongholds (numbered 1-4, worth 2 points each) and 12
- * Fortresses (numbered 1-12, worth 1 point each) that alliances fight over during the weekly
- * battle phase. This app doesn't referee the fight — it's just a shared, always-current board
- * of "who holds what right now", kept accurate by each state's own state_admin(s) so the rest
- * of the state doesn't have to ask around or trust a screenshot in Discord.
+ * This state's Fortress board: 4 Strongholds (numbered 1-4) and 12 Fortresses (numbered 1-12).
+ * Unlike the in-game Fortress Battle event itself, this state doesn't fight over them — who
+ * holds each building is decided by a NAP vote instead, and there's no points/ranking angle to
+ * track. This app is just the shared, always-current record of that outcome, kept accurate by
+ * the state's own state_admin(s) so the rest of the state doesn't have to ask around.
  *
  * One doc per building per state, doc ID `${stateId}-${kind}-${number}` (same composite-id
- * spirit as alliances' `${stateId}-${slug}` — see alliance.model.ts). `allianceId` is `null`
- * while unclaimed; it's the same composite alliance ID `alliances/{id}` uses, so a viewer can
- * look up the holder's name/tag with a single alliances read (already public, see
- * firestore.rules) rather than this doc denormalizing alliance name/tag itself and risking
- * drift after a rename.
+ * spirit as alliances' `${stateId}-${slug}` — see alliance.model.ts). Two independent things
+ * live on each doc:
+ *  - `allianceId` — who the NAP vote assigned this building to. The same composite alliance ID
+ *    `alliances/{id}` uses, so a viewer can look up the holder's name/tag with a single (already
+ *    public) alliances read rather than this doc denormalizing it and risking drift after a
+ *    rename.
+ *  - `rewardLabel` — the control reward this building currently pays out while held. Per the
+ *    state: a Fortress's reward is fixed for the whole 8-week season, while a Stronghold's can
+ *    change mid-season, but both are just plain admin-editable fields here — nothing in the
+ *    software needs to enforce that difference, it's just how often each tends to get touched.
  */
 export type FortressKind = 'stronghold' | 'fortress';
 
@@ -24,6 +28,7 @@ export interface FortressHolding {
   kind: FortressKind;
   number: number; // 1-4 for a stronghold, 1-12 for a fortress
   allianceId: string | null;
+  rewardLabel: string | null;
   updatedAt: number;
   updatedBy: string; // uid of the state_admin/superadmin who last set it
 }

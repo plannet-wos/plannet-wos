@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -15,7 +16,6 @@ import { AllianceService } from '../../core/services/alliance.service';
 import { RANK } from '../../core/constants/roles';
 import { FortressHolding, FortressKind, STRONGHOLD_COUNT, FORTRESS_COUNT, fortressHoldingId } from '../../core/models/fortress-holding.model';
 import { Alliance } from '../../core/models/alliance.model';
-import { FORTRESS_WEEK_CAPS, FORTRESS_REWARD_KINDS, STRONGHOLD_POINTS, FORTRESS_POINTS, CAPTURE_HOLD_MINUTES } from '../../core/constants/fortress-rewards';
 
 /** One grid cell — a building number paired with whatever holding doc (if any) exists for it. */
 interface BuildingCell {
@@ -32,6 +32,7 @@ interface BuildingCell {
     MatCardModule,
     MatFormFieldModule,
     MatIconModule,
+    MatInputModule,
     MatSelectModule,
     MatSnackBarModule,
     MatToolbarModule,
@@ -49,12 +50,6 @@ export class FortressComponent {
   readonly stateId = inject(ActivatedRoute).snapshot.paramMap.get('stateId')!;
   readonly account = this.auth.account;
   readonly isAuthenticated = this.auth.isAuthenticated;
-
-  readonly weekCaps = FORTRESS_WEEK_CAPS;
-  readonly rewardKinds = FORTRESS_REWARD_KINDS;
-  readonly strongholdPoints = STRONGHOLD_POINTS;
-  readonly fortressPoints = FORTRESS_POINTS;
-  readonly captureHoldMinutes = CAPTURE_HOLD_MINUTES;
 
   // Public page — no route guard (see app.routes.ts) — but editing is state_admin/superadmin
   // only, scoped to their own state, same threshold as state-admin.ts's own canManage-style
@@ -94,11 +89,29 @@ export class FortressComponent {
     return fortressHoldingId(this.stateId, cell.kind, cell.number);
   }
 
+  /** Who the NAP vote assigned this building to — set from the alliance dropdown. */
   async assign(cell: BuildingCell, allianceId: string): Promise<void> {
     const uid = this.account()?.uid;
     if (!uid || !this.canEdit()) return;
     try {
       await this.fortress.setHolder(this.stateId, cell.kind, cell.number, allianceId || null, uid);
+    } catch (err) {
+      this.snackBar.open((err as Error).message, '', { duration: 3000 });
+    }
+  }
+
+  /**
+   * The control reward this building currently pays out — a free-text field for now (there's no
+   * fixed reward catalog wired up yet, see fortress-rewards.ts), saved on blur rather than on
+   * every keystroke so a state admin can type a whole label before it round-trips to Firestore.
+   */
+  async saveReward(cell: BuildingCell, value: string): Promise<void> {
+    const uid = this.account()?.uid;
+    if (!uid || !this.canEdit()) return;
+    const trimmed = value.trim();
+    if (trimmed === (cell.holding?.rewardLabel ?? '')) return; // unchanged — skip the write
+    try {
+      await this.fortress.setReward(this.stateId, cell.kind, cell.number, trimmed || null, uid);
     } catch (err) {
       this.snackBar.open((err as Error).message, '', { duration: 3000 });
     }

@@ -34,7 +34,7 @@
 
 .board {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
   margin-top: 12px;
 }
@@ -50,7 +50,7 @@
   font-weight: 500;
 }
 
-.cell-select {
+.cell-field {
   width: 100%;
   // mat-form-field's default bottom padding for hint/error space is wasted here — these cells
   // never show either, so squeezing it back keeps the grid's cards from ballooning in height.
@@ -68,36 +68,7 @@
   }
 }
 
-.rewards-card {
-  margin-top: 32px;
-
-  h3 {
-    margin-bottom: 4px;
-  }
-}
-
-.caps-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 8px 0 16px;
-
-  th,
-  td {
-    text-align: left;
-    padding: 4px 12px 4px 0;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.3);
-  }
-}
-
-.reward-kinds {
-  margin: 0 0 8px;
-
-  dt {
-    font-weight: 500;
-    margin-top: 8px;
-  }
-  dd {
-    margin: 2px 0 0;
-    opacity: 0.8;
-  }
+.cell-reward {
+  font-size: 0.85rem;
+  opacity: 0.65;
 }
