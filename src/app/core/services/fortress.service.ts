@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
-import { Firestore, collection, collectionData, doc, query, setDoc, deleteDoc, where } from '@angular/fire/firestore';
+import { Firestore, collection, collectionData, doc, docData, query, setDoc, deleteDoc, where } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
-import { FortressHolding, FortressKind, fortressHoldingId } from '../models/fortress-holding.model';
+import { FortressHolding, FortressKind, FortressSettings, fortressHoldingId } from '../models/fortress-holding.model';
 
 @Injectable({ providedIn: 'root' })
 export class FortressService {
@@ -13,31 +13,34 @@ export class FortressService {
     return collectionData(q, { idField: 'id' }) as Observable<FortressHolding[]>;
   }
 
-  /**
-   * Sets which alliance a NAP vote assigned this building to (`null` for unclaimed) — merge:true
-   * so this never clobbers the building's own `rewardLabel`, which is set independently (see
-   * setReward below) and typically changes on a completely different schedule.
-   */
+  /** Sets which alliance a NAP vote assigned this building to (`null` for unclaimed). */
   async setHolder(stateId: string, kind: FortressKind, number: number, allianceId: string | null, updatedBy: string): Promise<void> {
     const id = fortressHoldingId(stateId, kind, number);
-    await setDoc(
-      doc(this.firestore, `fortress_holdings/${id}`),
-      { stateId, kind, number, allianceId, updatedAt: Date.now(), updatedBy },
-      { merge: true },
-    );
-  }
-
-  /** Sets the control reward this building currently pays out while held (`null` to clear it). Merge:true, same reasoning as setHolder above but for the other field. */
-  async setReward(stateId: string, kind: FortressKind, number: number, rewardLabel: string | null, updatedBy: string): Promise<void> {
-    const id = fortressHoldingId(stateId, kind, number);
-    await setDoc(
-      doc(this.firestore, `fortress_holdings/${id}`),
-      { stateId, kind, number, rewardLabel, updatedAt: Date.now(), updatedBy },
-      { merge: true },
-    );
+    await setDoc(doc(this.firestore, `fortress_holdings/${id}`), {
+      stateId,
+      kind,
+      number,
+      allianceId,
+      updatedAt: Date.now(),
+      updatedBy,
+    } satisfies Omit<FortressHolding, 'id'>);
   }
 
   async remove(stateId: string, kind: FortressKind, number: number): Promise<void> {
     await deleteDoc(doc(this.firestore, `fortress_holdings/${fortressHoldingId(stateId, kind, number)}`));
+  }
+
+  /** Which phase (1-8) of the fixed reward schedule this state is currently in — `undefined` until a state admin sets one for the first time, see fortress.ts's default-to-1 fallback. */
+  settings$(stateId: string): Observable<FortressSettings | undefined> {
+    return docData(doc(this.firestore, `fortress_settings/${stateId}`)) as Observable<FortressSettings | undefined>;
+  }
+
+  async setPhase(stateId: string, currentPhase: number, updatedBy: string): Promise<void> {
+    await setDoc(doc(this.firestore, `fortress_settings/${stateId}`), {
+      stateId,
+      currentPhase,
+      updatedAt: Date.now(),
+      updatedBy,
+    } satisfies FortressSettings);
   }
 }

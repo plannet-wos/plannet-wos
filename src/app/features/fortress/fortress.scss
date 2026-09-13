@@ -9,7 +9,7 @@
 }
 
 .fortress {
-  max-width: 1000px;
+  max-width: 1100px;
   margin: 0 auto;
   padding: 16px;
 }
@@ -19,6 +19,29 @@
   // app's global theme is dark (see styles.scss), same idiom as nap.scss/dashboard.scss.
   opacity: 0.7;
   margin-bottom: 16px;
+}
+
+.phase-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.phase-label {
+  font-weight: 500;
+}
+
+.phase-select {
+  width: 140px;
+  // squeeze the wasted hint/error subscript space, same idiom as .cell-field below
+  ::ng-deep .mat-mdc-form-field-subscript-wrapper {
+    display: none;
+  }
+}
+
+.phase-value {
+  opacity: 0.85;
 }
 
 .section-title {
@@ -68,7 +91,54 @@
   }
 }
 
-.cell-reward {
-  font-size: 0.85rem;
-  opacity: 0.65;
+// Color is a scanning aid only — the reward's name is always printed on the chip itself, never
+// color-alone — so a single dark-ink-on-light-fill treatment reads fine across every hue in
+// REWARD_INFO without needing a per-color contrast check (see fortress-rewards.ts's doc comment).
+.reward-chip {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #0b0b0b;
+}
+
+.schedule-card {
+  margin-top: 32px;
+}
+
+.schedule-scroll {
+  overflow-x: auto;
+  // mat-card's own surface color, pinned into a variable so the sticky first column below can
+  // match it exactly — relying on two separately-hardcoded values here would drift the moment
+  // either one changes. Angular Material 3's card surface token, with a plain dark fallback for
+  // any Material version where it isn't defined.
+  --schedule-surface: var(--mat-sys-surface-container-low, #232323);
+  background: var(--schedule-surface);
+}
+
+.schedule-table {
+  border-collapse: collapse;
+  width: 100%;
+
+  th,
+  td {
+    padding: 4px 8px;
+    text-align: left;
+    white-space: nowrap;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+  }
+
+  .row-label {
+    position: sticky;
+    left: 0;
+    // so the sticky column doesn't show the rest of the table scrolling underneath it.
+    background: var(--schedule-surface);
+  }
+
+  th.current-phase,
+  td.current-phase {
+    background: rgba(255, 255, 255, 0.06);
+  }
 }

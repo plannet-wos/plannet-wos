@@ -5,7 +5,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatToolbarModule } from '@angular/material/toolbar';
@@ -14,14 +13,23 @@ import { AuthService } from '../../core/services/auth.service';
 import { FortressService } from '../../core/services/fortress.service';
 import { AllianceService } from '../../core/services/alliance.service';
 import { RANK } from '../../core/constants/roles';
-import { FortressHolding, FortressKind, STRONGHOLD_COUNT, FORTRESS_COUNT, fortressHoldingId } from '../../core/models/fortress-holding.model';
+import {
+  FortressHolding,
+  FortressKind,
+  FortressSettings,
+  STRONGHOLD_COUNT,
+  FORTRESS_COUNT,
+  fortressHoldingId,
+} from '../../core/models/fortress-holding.model';
 import { Alliance } from '../../core/models/alliance.model';
+import { PHASE_COUNT, REWARD_INFO, RewardKey, rewardForPhase, STRONGHOLD_REWARD_SCHEDULE, FORTRESS_REWARD_SCHEDULE } from '../../core/constants/fortress-rewards';
 
-/** One grid cell — a building number paired with whatever holding doc (if any) exists for it. */
+/** One grid cell — a building number paired with whatever holding doc (if any) exists for it, plus its reward for the state's current phase. */
 interface BuildingCell {
   kind: FortressKind;
   number: number;
   holding: FortressHolding | undefined;
+  reward: RewardKey | undefined;
 }
 
 @Component({
@@ -32,7 +40,6 @@ interface BuildingCell {
     MatCardModule,
     MatFormFieldModule,
     MatIconModule,
-    MatInputModule,
     MatSelectModule,
     MatSnackBarModule,
     MatToolbarModule,
@@ -50,6 +57,8 @@ export class FortressComponent {
   readonly stateId = inject(ActivatedRoute).snapshot.paramMap.get('stateId')!;
   readonly account = this.auth.account;
   readonly isAuthenticated = this.auth.isAuthenticated;
+  readonly rewardInfo = REWARD_INFO;
+  readonly phases = Array.from({ length: PHASE_COUNT }, (_, i) => i + 1);
 
   // Public page — no route guard (see app.routes.ts) — but editing is state_admin/superadmin
   // only, scoped to their own state, same threshold as state-admin.ts's own canManage-style
@@ -62,6 +71,10 @@ export class FortressComponent {
 
   private readonly holdings = toSignal(this.fortress.listForState$(this.stateId), { initialValue: [] as FortressHolding[] });
   private readonly alliances = toSignal(this.allianceService.listForState$(this.stateId), { initialValue: [] as Alliance[] });
+  private readonly settings = toSignal(this.fortress.settings$(this.stateId), { initialValue: undefined as FortressSettings | undefined });
+
+  /** Defaults to phase 1 until a state admin has ever set one for this state. */
+  readonly currentPhase = computed(() => this.settings()?.currentPhase ?? 1);
 
   readonly allianceOptions = computed(() => [...this.alliances()].sort((a, b) => a.name.localeCompare(b.name)));
 
@@ -79,11 +92,25 @@ export class FortressComponent {
         .filter((h) => h.kind === kind)
         .map((h) => [h.number, h]),
     );
-    return Array.from({ length: count }, (_, i) => i + 1).map((number) => ({ kind, number, holding: byNumber.get(number) }));
+    const phase = this.currentPhase();
+    return Array.from({ length: count }, (_, i) => i + 1).map((number) => ({
+      kind,
+      number,
+      holding: byNumber.get(number),
+      reward: rewardForPhase(kind, number, phase),
+    }));
   }
 
   readonly strongholds = computed(() => this.buildRow('stronghold', STRONGHOLD_COUNT));
   readonly fortresses = computed(() => this.buildRow('fortress', FORTRESS_COUNT));
+
+  // The full 8-phase reference table (like the community-made schedule this was transcribed
+  // from) — every building's reward across every phase, not just the current one, so admins can
+  // plan ahead before the NAP vote for the next phase.
+  readonly scheduleRows = computed(() => [
+    ...Array.from({ length: STRONGHOLD_COUNT }, (_, i) => ({ kind: 'stronghold' as const, number: i + 1, schedule: STRONGHOLD_REWARD_SCHEDULE[i + 1] })),
+    ...Array.from({ length: FORTRESS_COUNT }, (_, i) => ({ kind: 'fortress' as const, number: i + 1, schedule: FORTRESS_REWARD_SCHEDULE[i + 1] })),
+  ]);
 
   trackCell(_index: number, cell: BuildingCell): string {
     return fortressHoldingId(this.stateId, cell.kind, cell.number);
@@ -100,18 +127,11 @@ export class FortressComponent {
     }
   }
 
-  /**
-   * The control reward this building currently pays out — a free-text field for now (there's no
-   * fixed reward catalog wired up yet, see fortress-rewards.ts), saved on blur rather than on
-   * every keystroke so a state admin can type a whole label before it round-trips to Firestore.
-   */
-  async saveReward(cell: BuildingCell, value: string): Promise<void> {
+  async setPhase(phase: number): Promise<void> {
     const uid = this.account()?.uid;
     if (!uid || !this.canEdit()) return;
-    const trimmed = value.trim();
-    if (trimmed === (cell.holding?.rewardLabel ?? '')) return; // unchanged — skip the write
     try {
-      await this.fortress.setReward(this.stateId, cell.kind, cell.number, trimmed || null, uid);
+      await this.fortress.setPhase(this.stateId, phase, uid);
     } catch (err) {
       this.snackBar.open((err as Error).message, '', { duration: 3000 });
     }
