@@ -12,6 +12,8 @@ export interface MapMarker {
   number: number;
   allianceId: string | null;
   allianceLabel: string;
+  /** Short tag (the alliance's slug, uppercased — same convention as display-name.util.ts) for the always-visible on-marker label; `null` while unclaimed. */
+  allianceTag: string | null;
   /** This building's reward across all 8 phases, in phase order — index 0 is phase 1. */
   schedule: RewardKey[];
   currentPhase: number;
@@ -41,9 +43,10 @@ interface Point {
  * computed from real coordinates — there's no per-state layout to vary, every state's board is
  * the same 4+12 shape. This is now the ONE place assignments are viewed AND changed (the
  * separate 16-card grid it used to sit above was dropped as redundant, see fortress.ts's git
- * history) — tapping a marker opens this component's own detail panel with the full 8-phase
- * reward strip, current phase highlighted, and, for a state_admin/superadmin (`canEdit`), an
- * alliance dropdown that emits `assign` for fortress.ts to actually write.
+ * history) — a claimed building's alliance tag sits right on its marker (no tap needed just to
+ * see who holds what), and tapping the marker opens this component's own detail panel with the
+ * full 8-phase reward strip, current phase highlighted, and, for a state_admin/superadmin
+ * (`canEdit`), an alliance dropdown that emits `assign` for fortress.ts to actually write.
  */
 @Component({
   selector: 'app-fortress-map',

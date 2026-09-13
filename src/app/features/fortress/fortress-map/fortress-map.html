@@ -18,6 +18,9 @@
     >
       <span class="marker-number">SH{{ m.number }}</span>
       <app-reward-chip [reward]="m.schedule[m.currentPhase - 1]" [compact]="true" />
+      @if (m.allianceTag) {
+        <span class="marker-tag" [title]="m.allianceLabel">{{ m.allianceTag }}</span>
+      }
     </button>
   }
 
@@ -32,6 +35,9 @@
     >
       <span class="marker-number">{{ m.number }}</span>
       <app-reward-chip [reward]="m.schedule[m.currentPhase - 1]" [compact]="true" />
+      @if (m.allianceTag) {
+        <span class="marker-tag" [title]="m.allianceLabel">{{ m.allianceTag }}</span>
+      }
     </button>
   }
 </div>

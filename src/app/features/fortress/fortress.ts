@@ -100,6 +100,13 @@ export class FortressComponent {
     return this.allianceById().get(allianceId)?.name ?? allianceId;
   }
 
+  /** Short tag for the map marker — the alliance's own slug, uppercased, same convention as display-name.util.ts's "[TAG] nickname"; falls back to the raw ID's slug portion if the alliance doc was since deleted. */
+  private allianceTag(allianceId: string | null): string | null {
+    if (!allianceId) return null;
+    const alliance = this.allianceById().get(allianceId);
+    return (alliance?.slug ?? allianceId.replace(/^\d+-/, '')).toUpperCase();
+  }
+
   private buildRow(kind: FortressKind, count: number): BuildingCell[] {
     const byNumber = new Map(
       this.holdings()
@@ -118,6 +125,7 @@ export class FortressComponent {
       number: cell.number,
       allianceId: cell.holding?.allianceId ?? null,
       allianceLabel: this.allianceLabel(cell.holding?.allianceId ?? null),
+      allianceTag: this.allianceTag(cell.holding?.allianceId ?? null),
       schedule,
       currentPhase: this.currentPhase(),
     };
