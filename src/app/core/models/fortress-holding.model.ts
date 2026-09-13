@@ -34,15 +34,18 @@ export function fortressHoldingId(stateId: string, kind: FortressKind, number: n
 }
 
 /**
- * One doc per state (doc ID == stateId) holding just which phase (1-8) of the fixed 8-phase
- * reward schedule the state is currently in — different states can be at different points in
- * their own season, so this isn't a global constant. State_admin-editable, same as the holdings
- * board; everything else about "what does phase N pay out" lives in fortress-rewards.ts, not
- * here.
+ * One doc per state (doc ID == stateId) holding just the one thing needed to compute which
+ * phase this state is on: `phase1StartAt`, the epoch-ms UTC midnight of the Saturday its current
+ * 8-phase cycle began. Everything else is derived — see fortress-rewards.ts's
+ * computeCurrentPhase(), which loops forever in 8-phase (8-week) blocks from this anchor, phases
+ * always running Saturday through Friday (the battle day) UTC. No admin has to flip a phase
+ * number week to week anymore; this only needs to be set once, and only touched again if a
+ * state's Fortress calendar ever gets out of sync with the computed value (e.g. it started on a
+ * different Saturday than fortress-rewards.ts's DEFAULT_PHASE1_START_MS assumes).
  */
 export interface FortressSettings {
   stateId: string;
-  currentPhase: number; // 1-8
+  phase1StartAt: number;
   updatedAt: number;
   updatedBy: string;
 }

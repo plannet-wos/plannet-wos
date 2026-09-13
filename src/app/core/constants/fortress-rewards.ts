@@ -51,6 +51,39 @@ export const REWARD_INFO: Record<RewardKey, RewardInfo> = {
 
 export const PHASE_COUNT = 8;
 
+/** Each phase is exactly one week, Saturday through Friday (the battle day), UTC. */
+const PHASE_LENGTH_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Default "phase 1 started" anchor: Saturday 2026-09-05T00:00:00Z, confirmed against the state
+ * being at phase 2 on Sunday 2026-09-13 (see fortress-holding.model.ts's FortressSettings doc
+ * comment). Only used until a state sets its own `phase1StartAt` in fortress_settings — a state
+ * whose Fortress calendar started on a different Saturday can override it there.
+ */
+export const DEFAULT_PHASE1_START_MS = Date.UTC(2026, 8, 5); // month is 0-indexed: 8 = September
+
+export interface PhaseInfo {
+  phase: number; // 1-8
+  phaseStartAt: number; // epoch ms, this phase's Saturday 00:00 UTC
+  phaseEndAt: number; // epoch ms, this phase's Friday 23:59:59.999 UTC — the battle day
+}
+
+/**
+ * Which phase (1-8) is live right now, purely a function of the calendar — no admin has to flip
+ * it week to week. Phases repeat forever in an 8-week loop from `phase1StartAt` (the same fixed
+ * reward schedule just starts over), and the boundary is UTC midnight Saturday, so this only
+ * needs the anchor and the current time, not any stored "which phase are we on" state.
+ * `now` defaults to `Date.now()` but takes an override for testing.
+ */
+export function currentPhaseInfo(phase1StartAt: number, now: number = Date.now()): PhaseInfo {
+  const weeksElapsed = Math.floor((now - phase1StartAt) / PHASE_LENGTH_MS);
+  // JS '%' can return negative for a negative dividend (now before the anchor) — the second '%
+  // PHASE_COUNT' pulls that back into [0, PHASE_COUNT) instead of [-PHASE_COUNT, PHASE_COUNT).
+  const phaseIndex = (((weeksElapsed % PHASE_COUNT) + PHASE_COUNT) % PHASE_COUNT);
+  const phaseStartAt = phase1StartAt + weeksElapsed * PHASE_LENGTH_MS;
+  return { phase: phaseIndex + 1, phaseStartAt, phaseEndAt: phaseStartAt + PHASE_LENGTH_MS - 1 };
+}
+
 /** Reward for each phase (index 0 = phase 1 ... index 7 = phase 8), keyed by Fortress number 1-12. */
 export const FORTRESS_REWARD_SCHEDULE: Record<number, RewardKey[]> = {
   1: ['shards', 'health', 'speeds', 'adv_teleport', 'wild_mark', 'health', 'speeds', 'gear_xp'],

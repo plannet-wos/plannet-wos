@@ -383,7 +383,7 @@ service cloud.firestore {
     // get() on the alliances collection — so a board can't be made to point at another state's
     // alliance, or at garbage that isn't an alliance at all. There's no reward field here at
     // all — what each building pays out is derived client-side from the fixed schedule in
-    // fortress-rewards.ts plus fortress_settings' currentPhase below, never stored per-building.
+    // fortress-rewards.ts plus the live-computed phase below, never stored per-building.
     match /fortress_holdings/{id} {
       allow read: if true;
 
@@ -406,19 +406,20 @@ service cloud.firestore {
         && (myRank() == 0 || myAccount().stateId == resource.data.stateId);
     }
 
-    // One doc per state (doc ID == stateId) holding just which phase (1-8) of Fortress's fixed
-    // 8-phase reward schedule (see fortress-rewards.ts) the state is currently in — different
-    // states can be at different points in their own season. Same read-open/write-state_admin+
-    // shape as fortress_holdings above.
+    // One doc per state (doc ID == stateId) holding just the phase-1 anchor date used to compute
+    // which phase of Fortress's fixed 8-phase reward schedule (see fortress-rewards.ts) the
+    // state is currently on — the phase itself is never stored, only derived from this plus the
+    // current time, so there's nothing to keep flipping week to week. Different states can be on
+    // different calendars, hence a doc per state rather than a global constant. Same
+    // read-open/write-state_admin+ shape as fortress_holdings above.
     match /fortress_settings/{stateId} {
       allow read: if true;
 
       allow create, update: if isActiveAccount() && myRank() <= 1
         && (myRank() == 0 || myAccount().stateId == stateId)
-        && request.resource.data.keys().hasOnly(['stateId', 'currentPhase', 'updatedAt', 'updatedBy'])
+        && request.resource.data.keys().hasOnly(['stateId', 'phase1StartAt', 'updatedAt', 'updatedBy'])
         && request.resource.data.stateId == stateId
-        && request.resource.data.currentPhase is int
-        && request.resource.data.currentPhase >= 1 && request.resource.data.currentPhase <= 8
+        && request.resource.data.phase1StartAt is number
         && request.resource.data.updatedAt is number
         && request.resource.data.updatedBy == request.auth.uid;
 

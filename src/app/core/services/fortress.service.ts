@@ -30,15 +30,15 @@ export class FortressService {
     await deleteDoc(doc(this.firestore, `fortress_holdings/${fortressHoldingId(stateId, kind, number)}`));
   }
 
-  /** Which phase (1-8) of the fixed reward schedule this state is currently in — `undefined` until a state admin sets one for the first time, see fortress.ts's default-to-1 fallback. */
+  /** This state's phase-1 anchor date — `undefined` until a state admin overrides fortress-rewards.ts's DEFAULT_PHASE1_START_MS, see fortress.ts's fallback. */
   settings$(stateId: string): Observable<FortressSettings | undefined> {
     return docData(doc(this.firestore, `fortress_settings/${stateId}`)) as Observable<FortressSettings | undefined>;
   }
 
-  async setPhase(stateId: string, currentPhase: number, updatedBy: string): Promise<void> {
+  async setPhase1Start(stateId: string, phase1StartAt: number, updatedBy: string): Promise<void> {
     await setDoc(doc(this.firestore, `fortress_settings/${stateId}`), {
       stateId,
-      currentPhase,
+      phase1StartAt,
       updatedAt: Date.now(),
       updatedBy,
     } satisfies FortressSettings);
