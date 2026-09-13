@@ -77,6 +77,35 @@
   white-space: nowrap;
 }
 
+// The whole point of showing this on the map at all — "which alliance gets what" at a glance,
+// no tap needed. Sits just outside the circle rather than inside it: the circle's already tight
+// with the number + reward icon, and a claimed building needs this to be the thing that jumps
+// out, not squeezed smaller to fit. `.marker` is itself position:absolute, which still makes it
+// a valid containing block for this.
+.marker-tag {
+  position: absolute;
+  top: 100%;
+  margin-top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--mat-sys-primary, #4fc3f7);
+  color: var(--mat-sys-on-primary, #00344a);
+  font-size: 0.55rem;
+  font-weight: 700;
+  // At the outer ring's tightest (mobile-width) spacing, two neighboring 30°-apart markers sit
+  // well under 100px apart — this caps a long alliance tag to an ellipsis rather than reading
+  // into its neighbor's tag; the `[title]` on the marker (see fortress-map.html) still carries
+  // the full name for anyone who needs it. Real alliance tags are normally short (a handful of
+  // letters, same convention as display-name.util.ts) — this is a safety net, not the common case.
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .detail-panel {
   max-width: 560px;
   margin: 12px auto 0;
