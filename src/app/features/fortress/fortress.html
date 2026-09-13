@@ -1,0 +1,120 @@
+<mat-toolbar class="toolbar">
+  <button mat-icon-button (click)="goBack()">
+    <mat-icon>arrow_back</mat-icon>
+  </button>
+  <span class="brand">State {{ stateId }} — Fortress</span>
+  <span class="spacer"></span>
+  @if (isAuthenticated()) {
+    <button mat-icon-button (click)="logout()">
+      <mat-icon>logout</mat-icon>
+    </button>
+  }
+</mat-toolbar>
+
+<div class="fortress">
+  <p class="intro">
+    Which alliance holds each Stronghold and Fortress right now — visible to anyone, kept up to date by
+    state {{ stateId }}'s state admin(s).
+    @if (!canEdit()) {
+      Only a state admin can change assignments here.
+    }
+  </p>
+
+  <h2 class="section-title">Strongholds</h2>
+  <p class="hint">4 total, worth {{ strongholdPoints }} points each.</p>
+  <div class="board">
+    @for (cell of strongholds(); track trackCell($index, cell)) {
+      <mat-card class="cell">
+        <div class="cell-number">Stronghold {{ cell.number }}</div>
+        @if (canEdit()) {
+          <mat-form-field appearance="outline" class="cell-select">
+            <mat-select [value]="cell.holding?.allianceId ?? ''" (selectionChange)="assign(cell, $event.value)">
+              <mat-option value="">Unclaimed</mat-option>
+              @for (a of allianceOptions(); track a.id) {
+                <mat-option [value]="a.id">{{ a.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        } @else {
+          <div class="cell-holder" [class.unclaimed]="!cell.holding?.allianceId">
+            {{ allianceLabel(cell.holding?.allianceId ?? null) }}
+          </div>
+        }
+      </mat-card>
+    }
+  </div>
+
+  <h2 class="section-title">Fortresses</h2>
+  <p class="hint">12 total, worth {{ fortressPoints }} point each.</p>
+  <div class="board">
+    @for (cell of fortresses(); track trackCell($index, cell)) {
+      <mat-card class="cell">
+        <div class="cell-number">Fortress {{ cell.number }}</div>
+        @if (canEdit()) {
+          <mat-form-field appearance="outline" class="cell-select">
+            <mat-select [value]="cell.holding?.allianceId ?? ''" (selectionChange)="assign(cell, $event.value)">
+              <mat-option value="">Unclaimed</mat-option>
+              @for (a of allianceOptions(); track a.id) {
+                <mat-option [value]="a.id">{{ a.name }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        } @else {
+          <div class="cell-holder" [class.unclaimed]="!cell.holding?.allianceId">
+            {{ allianceLabel(cell.holding?.allianceId ?? null) }}
+          </div>
+        }
+      </mat-card>
+    }
+  </div>
+
+  <mat-card class="rewards-card">
+    <mat-card-header>
+      <mat-card-title>Season structure &amp; rewards</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <p>
+        A Fortress Battles season runs 8 weekly phases. Each week's battle window lasts 2 hours; holding a
+        building for {{ captureHoldMinutes }} continuous minutes within it secures that building regardless
+        of how the phase ends.
+      </p>
+
+      <h3>Weekly registration cap</h3>
+      <p class="hint">
+        Buildings already held stay auto-registered; each week opens one more new registration slot per
+        building type (fortress capacity keeps growing, stronghold capacity caps at 4 since there are only
+        4 in total).
+      </p>
+      <table class="caps-table">
+        <thead>
+          <tr>
+            <th>Week</th>
+            <th>Max strongholds</th>
+            <th>Max fortresses</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of weekCaps; track row.week) {
+            <tr>
+              <td>{{ row.week }}</td>
+              <td>{{ row.maxStrongholds }}</td>
+              <td>{{ row.maxFortresses }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <h3>Reward types</h3>
+      <dl class="reward-kinds">
+        @for (kind of rewardKinds; track kind.name) {
+          <dt>{{ kind.name }}</dt>
+          <dd>{{ kind.description }}</dd>
+        }
+      </dl>
+      <p class="hint">
+        Exact loot (gems, speedups, Fire Crystals, hero shards) has changed between seasons — tap a
+        building in-game for its current live rewards popup rather than trusting a fixed number here.
+      </p>
+    </mat-card-content>
+  </mat-card>
+</div>

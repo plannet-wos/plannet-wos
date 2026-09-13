@@ -366,6 +366,43 @@ service cloud.firestore {
         && (myRank() == 0 || myAccount().stateId == napVote(resource.data.voteId).stateId);
     }
 
+    // --- Fortress (which alliance holds each Stronghold/Fortress) -----
+    // Fortress Battles is a global game mechanic (identical in every state): 4 Strongholds
+    // (numbered 1-4) and 12 Fortresses (numbered 1-12) per state, each independently assignable
+    // to an alliance. Doc ID is `${stateId}-${kind}-${number}` (same composite shape as
+    // alliances' `${stateId}-${slug}`), but unlike alliances that shape isn't re-derived or
+    // checked here — a state_admin can only ever act within their own stateId anyway (checked
+    // below), so a mismatched ID at worst confuses that same admin's own state, not a privilege
+    // escalation; same "trust the app to compute the ID sanely" stance alliances' own rules take.
+    // Reads are fully open — same as nap_votes and alliances — this is exactly the kind of thing
+    // any player in the state (or curious about it) should be able to see without an account.
+    // Writes are state_admin-or-above, scoped to their own state (superadmin any state), same
+    // threshold and scope check as svs_forms above. `allianceId` (when not null, i.e. not
+    // "unclaimed") must actually be a real alliance belonging to THIS same state — checked via
+    // a get() on the alliances collection — so a board can't be made to point at another
+    // state's alliance, or at garbage that isn't an alliance at all.
+    match /fortress_holdings/{id} {
+      allow read: if true;
+
+      allow create, update: if isActiveAccount() && myRank() <= 1
+        && (myRank() == 0 || myAccount().stateId == request.resource.data.stateId)
+        && request.resource.data.keys().hasOnly(['stateId', 'kind', 'number', 'allianceId', 'updatedAt', 'updatedBy'])
+        && request.resource.data.stateId is string
+        && request.resource.data.kind in ['stronghold', 'fortress']
+        && request.resource.data.number is int
+        && (request.resource.data.kind == 'stronghold'
+              ? request.resource.data.number >= 1 && request.resource.data.number <= 4
+              : request.resource.data.number >= 1 && request.resource.data.number <= 12)
+        && (request.resource.data.allianceId == null
+              || (request.resource.data.allianceId is string
+                  && get(/databases/$(database)/documents/alliances/$(request.resource.data.allianceId)).data.stateId == request.resource.data.stateId))
+        && request.resource.data.updatedAt is number
+        && request.resource.data.updatedBy == request.auth.uid;
+
+      allow delete: if isActiveAccount() && myRank() <= 1
+        && (myRank() == 0 || myAccount().stateId == resource.data.stateId);
+    }
+
     // --- Alliance Wiki ------------------------------------------------
     // Who can publish/edit/delete an article can't be enforced here without
     // real Auth: the wiki must stay publicly readable, and any "proof of

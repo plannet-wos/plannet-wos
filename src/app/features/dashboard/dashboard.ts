@@ -120,6 +120,14 @@ export class DashboardComponent {
     const rank = this.auth.rank();
     return rank !== null && rank <= RANK.R4 && this.auth.isActive();
   });
+  // Fortress's board is actually public (its route carries no guard — anyone can view it, see
+  // app.routes.ts), but the dashboard button itself is still only worth showing once someone's
+  // signed in and tied to a state, same "R4 and up" floor as canUseNap above — RANK.R4 is
+  // already the lowest rank there is, so this just means "any active account".
+  readonly canUseFortress = computed(() => {
+    const rank = this.auth.rank();
+    return rank !== null && rank <= RANK.R4 && this.auth.isActive();
+  });
   // state_admin/R5/R4 are tied to their own account.stateId. Superadmin isn't tied to any
   // state (their account has no stateId at all — that's why the button silently did
   // nothing for a superadmin before this fix) but can administer any state per the
@@ -166,6 +174,11 @@ export class DashboardComponent {
   goToNap(): void {
     const stateId = this.myAdminStateId();
     if (stateId) this.router.navigate([stateId, 'nap']);
+  }
+
+  goToFortress(): void {
+    const stateId = this.myAdminStateId();
+    if (stateId) this.router.navigate([stateId, 'fortress']);
   }
 
   goToLogin(): void {

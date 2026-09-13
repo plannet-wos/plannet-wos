@@ -22,6 +22,12 @@
         <span class="btn-label">NAP</span>
       </button>
     }
+    @if (canUseFortress()) {
+      <button mat-button (click)="goToFortress()">
+        <mat-icon>castle</mat-icon>
+        <span class="btn-label">Fortress</span>
+      </button>
+    }
 
     <button mat-icon-button [matMenuTriggerFor]="userMenu" class="profile-trigger" [title]="needsNickname() ? 'Set a nickname on your profile' : ''">
       <mat-icon>account_circle</mat-icon>

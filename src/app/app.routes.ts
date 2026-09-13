@@ -50,5 +50,13 @@ export const routes: Routes = [
     loadComponent: () => import('./features/nap/nap').then((m) => m.NapComponent),
     canActivate: [stateScopedGuard(RANK.R4)],
   },
+  {
+    // Public — no guard, same reasoning as ':stateId/nap/archive' above: "which alliance holds
+    // which Stronghold/Fortress" is meant to be visible to anyone in (or curious about) the
+    // state, not just its own members. fortress.ts's own canEdit() gates the write controls to
+    // state_admin/superadmin; firestore.rules is what actually enforces that.
+    path: ':stateId/fortress',
+    loadComponent: () => import('./features/fortress/fortress').then((m) => m.FortressComponent),
+  },
   { path: '**', redirectTo: 'dashboard' },
 ];
