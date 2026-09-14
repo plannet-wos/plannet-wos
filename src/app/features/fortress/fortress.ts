@@ -136,10 +136,21 @@ export class FortressComponent {
 
   // The full 8-phase reference table (like the community-made schedule this was transcribed
   // from) — every building's reward across every phase, not just the current one, so admins can
-  // plan ahead before the next allocation round.
+  // plan ahead before the next allocation round. Carries the current holder's tag too (row label
+  // reads e.g. "F1: HOC") so the table doubles as a compact "who has what" list, not just rewards.
   readonly scheduleRows = computed(() => [
-    ...Array.from({ length: STRONGHOLD_COUNT }, (_, i) => ({ kind: 'stronghold' as const, number: i + 1, schedule: STRONGHOLD_REWARD_SCHEDULE[i + 1] })),
-    ...Array.from({ length: FORTRESS_COUNT }, (_, i) => ({ kind: 'fortress' as const, number: i + 1, schedule: FORTRESS_REWARD_SCHEDULE[i + 1] })),
+    ...this.strongholds().map((c) => ({
+      kind: 'stronghold' as const,
+      number: c.number,
+      schedule: STRONGHOLD_REWARD_SCHEDULE[c.number],
+      allianceTag: this.allianceTag(c.holding?.allianceId ?? null),
+    })),
+    ...this.fortresses().map((c) => ({
+      kind: 'fortress' as const,
+      number: c.number,
+      schedule: FORTRESS_REWARD_SCHEDULE[c.number],
+      allianceTag: this.allianceTag(c.holding?.allianceId ?? null),
+    })),
   ]);
 
   /** Handles the map's (assign) output — who this state's own process assigned a building to. */
