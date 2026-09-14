@@ -110,7 +110,9 @@
           <tbody>
             @for (row of scheduleRows(); track row.kind + row.number) {
               <tr>
-                <th class="row-label">{{ row.kind === 'stronghold' ? 'Stronghold' : 'Fortress' }} {{ row.number }}</th>
+                <th class="row-label">
+                  {{ row.kind === 'stronghold' ? 'SH' : 'F' }}{{ row.number }}@if (row.allianceTag) {: {{ row.allianceTag }}}
+                </th>
                 @for (reward of row.schedule; track $index) {
                   <td [class.current-phase]="$index + 1 === currentPhase()">
                     <app-reward-chip [reward]="reward" />
