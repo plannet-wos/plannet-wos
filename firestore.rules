@@ -244,6 +244,39 @@ service cloud.firestore {
       allow delete: if isActiveAccount() && myRank() == 0;
     }
 
+    // --- approver_directory (who a pending signup candidate is waiting on) ------
+    // Public, nickname-only mirror of each active state_admin's/R5's own account — see
+    // ApproverEntry's doc comment in account.model.ts. Exists because a pending candidate
+    // can't read anyone else's accounts/{uid} doc, and opening that up would expose emails.
+    // Read: any signed-in user (a candidate is signed in from signup onward); nothing here
+    // is more than what nap_ballots already shows publicly (nickname + rank + alliance).
+    // Write: only the owner, only while active as rank 1/2, and only an exact copy of their
+    // own account's rank/stateId/allianceId/nickname. Delete: the owner, or anyone at all once
+    // the entry no longer matches the live account (revoked, re-ranked, moved, renamed) — that
+    // check is self-verifying, so letting any signed-in client prune a stale entry is safe.
+    function approverEntryIsStale(uid, entry) {
+      return !exists(/databases/$(database)/documents/accounts/$(uid))
+        || accountFor(uid).status != 'active'
+        || accountFor(uid).rank != entry.rank
+        || accountFor(uid).get('stateId', null) != entry.get('stateId', null)
+        || accountFor(uid).get('allianceId', null) != entry.get('allianceId', null)
+        || accountFor(uid).get('nickname', null) != entry.get('nickname', null);
+    }
+
+    match /approver_directory/{uid} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && isActiveAccount() && myRank() in [1, 2]
+        && request.resource.data.keys().hasOnly(['uid', 'rank', 'stateId', 'allianceId', 'nickname'])
+        && request.resource.data.uid == uid
+        && request.resource.data.rank == myRank()
+        && request.resource.data.get('stateId', null) == myAccount().get('stateId', null)
+        && request.resource.data.get('allianceId', null) == myAccount().get('allianceId', null)
+        && request.resource.data.get('nickname', null) == myAccount().get('nickname', null);
+      allow delete: if request.auth != null
+        && (request.auth.uid == uid || approverEntryIsStale(uid, resource.data));
+    }
+
     // --- NAP (the state-admins' voting council) -----------------------
     // R5 and up create votes; who may CAST a ballot is the vote's own `voteScope`, checked
     // against the voter's OWN account doc — same denormalized-scope pattern as `sameScope()`

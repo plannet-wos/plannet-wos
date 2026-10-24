@@ -7,13 +7,14 @@ import {
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   deleteField,
   serverTimestamp,
   query,
   where,
 } from '@angular/fire/firestore';
 import { Observable, map } from 'rxjs';
-import { Account } from '../models/account.model';
+import { Account, ApproverEntry } from '../models/account.model';
 import { RANK, Rank, ROLE_BY_RANK, Scope, SCOPE_BY_RANK, approverRank } from '../constants/roles';
 import { NapService } from './nap.service';
 
@@ -252,6 +253,28 @@ export class AccountsService {
 
   async revoke(target: Account): Promise<void> {
     await updateDoc(this.ref(target.uid), { status: 'suspended' });
+    await this.pruneApproverEntry(target.uid);
+  }
+
+  /**
+   * Everyone listed in approver_directory for one state — the state_admins and R5s a pending
+   * candidate there might be waiting on (see ApproverEntry's doc comment). Callers narrow it
+   * down to their own alliance client-side; it's at most a few dozen small docs per state.
+   */
+  approversForState$(stateId: string): Observable<ApproverEntry[]> {
+    const q = query(collection(this.firestore, 'approver_directory'), where('stateId', '==', stateId));
+    return collectionData(q) as Observable<ApproverEntry[]>;
+  }
+
+  /**
+   * Drops a target's approver_directory entry once a manager's change made it stale (revoked,
+   * re-ranked, moved, renamed) — firestore.rules re-checks it against the live account, so
+   * this is a no-op-by-denial when the entry still matches (e.g. an unrelated edit). The
+   * owner's own next session re-creates it if they still qualify, see
+   * AuthService.syncApproverDirectory(). Best-effort, never fails the caller's real write.
+   */
+  private async pruneApproverEntry(uid: string): Promise<void> {
+    await deleteDoc(doc(this.firestore, `approver_directory/${uid}`)).catch(() => {});
   }
 
   /**
@@ -284,6 +307,7 @@ export class AccountsService {
     if (newNickname !== undefined) {
       await this.nap.syncNicknameOnBallots(target.uid, newNickname);
     }
+    await this.pruneApproverEntry(target.uid);
   }
 
   /** Rank that would approve/revoke `rank` — undefined for superadmin. Re-exported here so components don't need to import roles.ts directly for this one thing. */

@@ -11,9 +11,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../../core/services/auth.service';
 import { StatesService } from '../../core/services/states.service';
-import { RANK } from '../../core/constants/roles';
+import { RANK, ROLE_LABEL } from '../../core/constants/roles';
 import { environment } from '../../../environments/environment';
 import { DisplayNamePipe } from '../../shared/display-name.pipe';
+import { PendingApproversComponent } from '../../shared/pending-approvers/pending-approvers';
 
 interface AppTile {
   name: string;
@@ -85,6 +86,7 @@ const APPS: AppTile[] = [
   imports: [
     FormsModule,
     DisplayNamePipe,
+    PendingApproversComponent,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -107,6 +109,9 @@ export class DashboardComponent {
   // that matters) — a small dot on the menu trigger, not a blocking modal, since a blank
   // nickname is a cosmetic "Unnamed" fallback, never broken functionality. Clears itself as
   // soon as account() reflects a saved nickname, same live listener the menu header uses.
+  /** A signed-in candidate still awaiting approval — shows them who can approve them (see PendingApproversComponent). */
+  readonly roleLabel = ROLE_LABEL;
+  readonly pendingAccount = computed(() => (this.account()?.status === 'pending' ? this.account() : null));
   readonly needsNickname = computed(() => !!this.account() && !this.account()?.nickname?.trim());
   readonly isSuperAdmin = computed(() => this.auth.rank() === RANK.SUPERADMIN);
   readonly isStateAdminOrR5 = computed(() => {

@@ -68,6 +68,15 @@
     <p class="tagline">Alliance tools for Whiteout Survival</p>
   </div>
 
+  @if (pendingAccount(); as acc) {
+    <mat-card class="pending-card">
+      <mat-card-content>
+        <h3>Your {{ roleLabel[acc.role] }} request is waiting for approval</h3>
+        <app-pending-approvers [account]="acc" />
+      </mat-card-content>
+    </mat-card>
+  }
+
   <h2 class="section-title">Free tools</h2>
   <div class="app-grid">
     @for (app of globalApps; track app.name) {
