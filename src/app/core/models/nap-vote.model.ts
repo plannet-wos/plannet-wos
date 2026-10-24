@@ -53,6 +53,8 @@ export interface NapBallot {
   nickname: string;
   rank: Rank;
   allianceId: string;
+  /** The voter's allianceRankOf() at cast time — what 'r5_only' eligibility and the alliance tie-break go by. Missing on ballots cast before it existed, which predate R4 state_admins, so `rank` stands in for those. */
+  allianceRank?: Rank;
   selections: string[];
   votedAt: number;
 }

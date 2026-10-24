@@ -1,4 +1,4 @@
-import { Rank, Role } from '../constants/roles';
+import { RANK, Rank, Role } from '../constants/roles';
 
 /** A game server / "state" — the top-level scope everything else (alliances, accounts) lives under. */
 export interface StateDoc {
@@ -20,13 +20,20 @@ export interface Account {
   /** Set for state_admin, and denormalized onto r5/r4 too (from their alliance) so rules never need a second get(). */
   stateId?: string;
   /**
-   * Always set for r5/r4. Optionally set on state_admin too, when the same person also
-   * personally leads that one alliance as its R5 — see roles.ts's header comment and
+   * Always set for r5/r4. Optionally set on state_admin too, when the same person is also
+   * in that one alliance — as its R5 or as an R4, see `allianceRank` below — see roles.ts's header comment and
    * firestore.rules' sameScope() for what this does and doesn't grant beyond plain
    * state_admin: R4 account-management and alliance-admin tooling for THIS alliance only,
    * never any other alliance in the state (state-wide R5 approval is unaffected either way).
    */
   allianceId?: string;
+  /**
+   * superadmin/state_admin only: the rank they hold INSIDE `allianceId` — R5 (leads it) or R4.
+   * Missing means R5, which is what every self-tagged admin was before this field existed, so
+   * older accounts need no migration. Never read for r5/r4 accounts, whose `rank` already IS
+   * their alliance rank — see allianceRankOf().
+   */
+  allianceRank?: AllianceRank;
   /**
    * Self-chosen display name — profile.ts's self-service field. Every view that would
    * otherwise show this account's email to OTHER users (admin tables, NAP ballots, the
@@ -52,7 +59,23 @@ export interface Account {
 }
 
 /** Fields a candidate supplies when requesting a rank for themselves — the rest (status, mfaEnrolled, requestedAt) are set by the service. */
-export type AccountRequest = Pick<Account, 'uid' | 'email' | 'role' | 'rank' | 'stateId' | 'allianceId'>;
+export type AccountRequest = Pick<Account, 'uid' | 'email' | 'role' | 'rank' | 'stateId' | 'allianceId' | 'allianceRank'>;
+
+/** The two ranks a person can hold inside an alliance. */
+export type AllianceRank = typeof RANK.R5 | typeof RANK.R4;
+
+/**
+ * Someone's rank within their own alliance, separate from their admin rank: an r5/r4's own
+ * `rank`, or a superadmin/state_admin's `allianceRank` (R5 when unset — see that field) if
+ * they're tagged into an alliance at all. null means no alliance. This is what "is this
+ * alliance's R5" checks (NAP's 'r5_only' votes and tie-breaks, the approver list) go by, never
+ * `rank <= RANK.R5` — a state_admin can be an alliance's R4.
+ */
+export function allianceRankOf(person: { rank: Rank; allianceId?: string; allianceRank?: AllianceRank }): AllianceRank | null {
+  if (!person.allianceId) return null;
+  if (person.rank === RANK.R5 || person.rank === RANK.R4) return person.rank;
+  return person.allianceRank ?? RANK.R5;
+}
 
 /**
  * Shape of a document in `approver_directory/{uid}` — a public, nickname-only mirror of one
@@ -66,4 +89,4 @@ export type AccountRequest = Pick<Account, 'uid' | 'email' | 'role' | 'rank' | '
  * A revoked/re-ranked/renamed approver's stale entry is deletable by anyone (rules re-check it
  * against the live account) — AccountsService.revoke()/updateRole() do exactly that.
  */
-export type ApproverEntry = Pick<Account, 'uid' | 'rank' | 'stateId' | 'allianceId' | 'nickname'>;
+export type ApproverEntry = Pick<Account, 'uid' | 'rank' | 'stateId' | 'allianceId' | 'allianceRank' | 'nickname'>;

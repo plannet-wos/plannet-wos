@@ -168,6 +168,7 @@ export class AuthService {
       rank: account.rank,
       ...(account.stateId !== undefined ? { stateId: account.stateId } : {}),
       ...(account.allianceId !== undefined ? { allianceId: account.allianceId } : {}),
+      ...(account.allianceRank !== undefined ? { allianceRank: account.allianceRank } : {}),
       ...(account.nickname !== undefined ? { nickname: account.nickname } : {}),
     };
     setDoc(ref, entry).catch(() => {});

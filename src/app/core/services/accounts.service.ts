@@ -14,7 +14,7 @@ import {
   where,
 } from '@angular/fire/firestore';
 import { Observable, map } from 'rxjs';
-import { Account, ApproverEntry } from '../models/account.model';
+import { Account, AllianceRank, ApproverEntry, allianceRankOf } from '../models/account.model';
 import { RANK, Rank, ROLE_BY_RANK, Scope, SCOPE_BY_RANK, approverRank } from '../constants/roles';
 import { NapService } from './nap.service';
 
@@ -24,6 +24,8 @@ export interface RequestRoleParams {
   rank: Rank;
   stateId?: string;
   allianceId?: string;
+  /** state_admin only, alongside allianceId — see Account.allianceRank. */
+  allianceRank?: AllianceRank;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -62,6 +64,7 @@ export class AccountsService {
       requestedAt: Date.now(),
       ...(params.stateId !== undefined ? { stateId: params.stateId } : {}),
       ...(params.allianceId !== undefined ? { allianceId: params.allianceId } : {}),
+      ...(params.allianceRank !== undefined ? { allianceRank: params.allianceRank } : {}),
     };
     await setDoc(this.ref(params.uid), account);
   }
@@ -132,7 +135,7 @@ export class AccountsService {
 
   /**
    * Active state_admins in this state who've ALSO self-tagged "I personally lead this
-   * alliance" (profile.ts / accounts' self-tag update rule) — the same R5-equivalent standing
+   * alliance" as its R5 (allianceRankOf() — one tagged in as an alliance's R4 isn't its leader) (profile.ts / accounts' self-tag update rule) — the same R5-equivalent standing
    * NapVoteCard's canVote() and the R4 queue above already grant them. The state cockpit's
    * "Active R5s" list (state-admin.ts) merges these in alongside real rank-2 R5 accounts, so a
    * self-tagged state_admin shows up as their alliance's leader there too — they were
@@ -148,7 +151,7 @@ export class AccountsService {
       where('rank', '==', RANK.STATE_ADMIN),
       where('status', '==', 'active'),
     );
-    return (collectionData(q) as Observable<Account[]>).pipe(map((admins) => admins.filter((a) => !!a.allianceId)));
+    return (collectionData(q) as Observable<Account[]>).pipe(map((admins) => admins.filter((a) => allianceRankOf(a) === RANK.R5)));
   }
 
   /**
@@ -211,14 +214,16 @@ export class AccountsService {
   }
 
   /**
-   * Self-service "I also personally lead this alliance" tag — profile.ts's version of the
-   * allianceId field a manager can already set via updateRole(). Omitting allianceId clears
-   * the tag. See firestore.rules' accounts update rule for the actual constraints (superadmin:
+   * Self-service "I'm also in this alliance" tag — profile.ts's version of the
+   * allianceId/allianceRank fields a manager can already set via updateRole(). Omitting
+   * allianceId clears the tag (both fields). See firestore.rules' accounts update rule for the actual constraints (superadmin:
    * any alliance, purely a display tag; state_admin: only one in their own state; not
    * available at all to r5/r4, whose allianceId is their real permission-defining scope).
    */
-  async setOwnAllianceTag(uid: string, allianceId?: string): Promise<void> {
-    await updateDoc(this.ref(uid), { allianceId: allianceId !== undefined ? allianceId : deleteField() });
+  async setOwnAllianceTag(uid: string, allianceId?: string, allianceRank: AllianceRank = RANK.R5): Promise<void> {
+    await updateDoc(this.ref(uid), allianceId !== undefined
+      ? { allianceId, allianceRank }
+      : { allianceId: deleteField(), allianceRank: deleteField() });
   }
 
   /**
@@ -284,7 +289,9 @@ export class AccountsService {
    * alliance leadership, or reassigning them to R5/R4 outright. `newAllianceId` omitted
    * clears any existing allianceId (e.g. a state_admin who no longer also leads an
    * alliance); pass it whenever the new rank needs one (always for r5/r4, optionally for
-   * state_admin). `newNickname`, when passed, overwrites the target's own self-chosen
+   * state_admin). `newAllianceRank` is the superadmin/state_admin's rank inside that
+   * alliance (see Account.allianceRank) — ignored, and the field cleared, for r5/r4 or when
+   * there's no alliance. `newNickname`, when passed, overwrites the target's own self-chosen
    * nickname (see firestore.rules' accounts update rule for the manager-edit branch this
    * rides along on — same call, one write, rather than a second round trip) — the edit
    * forms always pass the field's current contents, whether the manager actually changed it
@@ -294,11 +301,13 @@ export class AccountsService {
    * firestore.rules' accounts update rule — on both the target's OLD and NEW rank/scope, so
    * this can only move someone within the caller's own authority, never out of it.
    */
-  async updateRole(target: Account, newRank: Rank, newAllianceId?: string, newNickname?: string): Promise<void> {
+  async updateRole(target: Account, newRank: Rank, newAllianceId?: string, newNickname?: string, newAllianceRank?: AllianceRank): Promise<void> {
+    const keepsAllianceRank = newAllianceId !== undefined && newRank <= RANK.STATE_ADMIN;
     await updateDoc(this.ref(target.uid), {
       role: ROLE_BY_RANK[newRank],
       rank: newRank,
       allianceId: newAllianceId !== undefined ? newAllianceId : deleteField(),
+      allianceRank: keepsAllianceRank ? (newAllianceRank ?? RANK.R5) : deleteField(),
       ...(newNickname !== undefined ? { nickname: newNickname } : {}),
     });
     // Mirror onto the target's past NAP ballots too — see setOwnNickname()'s and
