@@ -14,6 +14,7 @@ import { AccountsService } from '../../core/services/accounts.service';
 import { StatesService } from '../../core/services/states.service';
 import { AllianceService } from '../../core/services/alliance.service';
 import { Alliance, allianceId as composeAllianceId } from '../../core/models/alliance.model';
+import { AllianceRank } from '../../core/models/account.model';
 import { RANK, Rank, REQUESTABLE_RANKS, ROLE_LABEL, SCOPE_BY_RANK } from '../../core/constants/roles';
 
 @Component({
@@ -54,6 +55,8 @@ export class SignupComponent {
   // never required (a "pure" state_admin with no alliance is completely normal too), and
   // never offered for R5/R4 requests, which already always need an alliance below.
   alsoLeadsAlliance = false;
+  // ...and their rank inside that alliance: usually R5, but a state admin can be an R4 too.
+  allianceRank: AllianceRank = RANK.R5;
 
   readonly alliancesForState = signal<Alliance[]>([]);
 
@@ -135,6 +138,7 @@ export class SignupComponent {
       // their own allianceId.
       stateId: this.stateId,
       allianceId: this.needsAlliance() ? composeAllianceId(this.stateId, this.allianceSlug) : undefined,
+      allianceRank: this.alsoLeadsAlliance ? this.allianceRank : undefined,
     });
     this.router.navigate(['/enroll-totp']);
   }

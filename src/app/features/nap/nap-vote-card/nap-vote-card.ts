@@ -17,6 +17,7 @@ import { AuthService } from '../../../core/services/auth.service';
 import { NapService } from '../../../core/services/nap.service';
 import { AllianceBreakdownRow, NapOptionTally, allianceBreakdown, tallyNapVote } from '../../../core/services/nap-results';
 import { RANK } from '../../../core/constants/roles';
+import { allianceRankOf } from '../../../core/models/account.model';
 import { Alliance } from '../../../core/models/alliance.model';
 import { NapBallot, NapVote } from '../../../core/models/nap-vote.model';
 import { DisplayNamePipe } from '../../../shared/display-name.pipe';
@@ -114,11 +115,10 @@ export class NapVoteCardComponent {
     // never vote on ANY vote, in either scope, regardless of alliance leadership.
     if (account.rank !== RANK.SUPERADMIN && account.stateId !== vote.stateId) return false;
     if (vote.voteScope === 'r5_only') {
-      // Real R5, or a state_admin/superadmin who's self-tagged "I also lead this alliance" —
-      // the same R5-equivalent standing that tag already grants elsewhere (state-admin.ts's
-      // leadsAlliance(), the R4 queue). Being someone's alliance's R5 in substance is what
-      // "R5 only" means here, not the literal rank number.
-      return account.rank <= RANK.R5 && !!account.allianceId;
+      // Real R5, or a state_admin/superadmin tagged into their alliance as its R5 (not R4 —
+      // see allianceRankOf()). Being someone's alliance's R5 in substance is what "R5 only"
+      // means here, not the literal rank number.
+      return allianceRankOf(account) === RANK.R5;
     }
     return !!account.allianceId;
   });
@@ -226,6 +226,7 @@ export class NapVoteCardComponent {
         nickname: account.nickname ?? '',
         rank: account.rank,
         allianceId: account.allianceId ?? '',
+        allianceRank: allianceRankOf(account) ?? account.rank,
         selections: this.selected(),
         votedAt: Date.now(),
       });

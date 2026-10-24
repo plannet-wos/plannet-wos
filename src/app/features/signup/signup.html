@@ -35,8 +35,18 @@
 
         @if (showAllianceOptIn()) {
           <mat-checkbox [(ngModel)]="alsoLeadsAlliance" name="alsoLeadsAlliance">
-            I also personally lead an alliance in this state, as its R5
+            I'm also an R5 or R4 of an alliance in this state
           </mat-checkbox>
+        }
+
+        @if (alsoLeadsAlliance) {
+          <mat-form-field appearance="outline">
+            <mat-label>Your rank in that alliance</mat-label>
+            <mat-select [(ngModel)]="allianceRank" name="allianceRank">
+              <mat-option [value]="RANK.R5">R5</mat-option>
+              <mat-option [value]="RANK.R4">R4</mat-option>
+            </mat-select>
+          </mat-form-field>
         }
 
         @if (needsAlliance()) {

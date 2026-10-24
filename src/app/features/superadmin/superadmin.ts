@@ -18,7 +18,7 @@ import { AccountsService } from '../../core/services/accounts.service';
 import { StatesService } from '../../core/services/states.service';
 import { AllianceService } from '../../core/services/alliance.service';
 import { RANK, Rank, ROLE_LABEL } from '../../core/constants/roles';
-import { Account, StateDoc } from '../../core/models/account.model';
+import { Account, AllianceRank, StateDoc } from '../../core/models/account.model';
 import { Alliance, allianceId as composeAllianceId } from '../../core/models/alliance.model';
 import { displayName } from '../../core/utils/display-name.util';
 import { DisplayNamePipe } from '../../shared/display-name.pipe';
@@ -94,6 +94,8 @@ export class SuperadminComponent {
   editingUid = signal<string | null>(null);
   editRank: Rank = RANK.STATE_ADMIN;
   editAllianceSlug = '';
+  // A state_admin's own rank inside editAllianceSlug's alliance (see Account.allianceRank).
+  editAllianceRank: AllianceRank = RANK.R5;
   // Lets a manager overwrite their subordinate's self-chosen nickname (see
   // AccountsService.updateRole()'s doc comment) — pre-filled with whatever the target already
   // has, so leaving it untouched round-trips it unchanged.
@@ -113,6 +115,7 @@ export class SuperadminComponent {
     this.editRank = account.rank;
     this.editAlliances.set([]);
     this.editAllianceSlug = '';
+    this.editAllianceRank = account.allianceRank ?? RANK.R5;
     this.editNickname = account.nickname ?? '';
     if (account.stateId) {
       this.allianceService.listForState$(account.stateId).subscribe((alliances) => {
@@ -143,6 +146,7 @@ export class SuperadminComponent {
         this.editRank,
         this.editAllianceSlug ? composeAllianceId(account.stateId!, this.editAllianceSlug) : undefined,
         this.editNickname.trim(),
+        this.editAllianceRank,
       );
       this.snackBar.open(`${displayName(account)} updated`, '', { duration: 2500 });
       this.editingUid.set(null);

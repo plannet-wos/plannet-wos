@@ -48,6 +48,13 @@ service cloud.firestore {
     function myRank() {
       return myAccount().rank;
     }
+    // Rank INSIDE an alliance (2 = R5, 3 = R4), separate from the admin rank above — mirrors
+    // account.model.ts's allianceRankOf(). An r5/r4's own rank; a superadmin/state_admin's
+    // `allianceRank` field, defaulting to R5 for accounts tagged before that field existed.
+    // Only meaningful when the account has an allianceId at all — callers check that too.
+    function allianceRankOf(acc) {
+      return acc.rank >= 2 ? acc.rank : acc.get('allianceRank', 2);
+    }
     function isActiveAccount() {
       return request.auth != null
         && exists(/databases/$(database)/documents/accounts/$(request.auth.uid))
@@ -154,6 +161,7 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == uid
         && request.resource.data.status == 'pending'
         && request.resource.data.rank in [1, 2, 3]
+        && request.resource.data.get('allianceRank', 2) in [2, 3]
         && request.resource.data.mfaEnrolled == false;
 
       allow update: if request.auth != null && (
@@ -192,6 +200,7 @@ service cloud.firestore {
           && myRank() < resource.data.rank
           && myRank() < request.resource.data.rank
           && request.resource.data.rank in [1, 2, 3]
+          && request.resource.data.get('allianceRank', 2) in [2, 3]
           && sameScope(resource.data)
           && sameScope(request.resource.data)
           && (!('nickname' in request.resource.data)
@@ -219,8 +228,12 @@ service cloud.firestore {
         // point this at an alliance in their OWN state (checked via the id's "{stateId}-…"
         // prefix, same composition alliance.model.ts's allianceId() uses) — clearing it
         // (removing the field entirely) is always allowed, no state check needed for that.
+        // `allianceRank` rides along: whether they're that alliance's R5 or just one of its
+        // R4s (see allianceRankOf() above) — only ever 2 or 3, and it changes nothing about
+        // their admin rank.
         (request.auth.uid == uid && isActiveAccount()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allianceId'])
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['allianceId', 'allianceRank'])
+          && request.resource.data.get('allianceRank', 2) in [2, 3]
           && (myRank() == 0 || (
                 myRank() == 1
                 && (!('allianceId' in request.resource.data)
@@ -260,6 +273,7 @@ service cloud.firestore {
         || accountFor(uid).rank != entry.rank
         || accountFor(uid).get('stateId', null) != entry.get('stateId', null)
         || accountFor(uid).get('allianceId', null) != entry.get('allianceId', null)
+        || accountFor(uid).get('allianceRank', null) != entry.get('allianceRank', null)
         || accountFor(uid).get('nickname', null) != entry.get('nickname', null);
     }
 
@@ -267,11 +281,12 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null && request.auth.uid == uid
         && isActiveAccount() && myRank() in [1, 2]
-        && request.resource.data.keys().hasOnly(['uid', 'rank', 'stateId', 'allianceId', 'nickname'])
+        && request.resource.data.keys().hasOnly(['uid', 'rank', 'stateId', 'allianceId', 'allianceRank', 'nickname'])
         && request.resource.data.uid == uid
         && request.resource.data.rank == myRank()
         && request.resource.data.get('stateId', null) == myAccount().get('stateId', null)
         && request.resource.data.get('allianceId', null) == myAccount().get('allianceId', null)
+        && request.resource.data.get('allianceRank', null) == myAccount().get('allianceRank', null)
         && request.resource.data.get('nickname', null) == myAccount().get('nickname', null);
       allow delete: if request.auth != null
         && (request.auth.uid == uid || approverEntryIsStale(uid, resource.data));
@@ -332,9 +347,10 @@ service cloud.firestore {
     // and match its single/multiple setting, and your denormalized rank/allianceId/email
     // match your OWN account doc right now (so you can't vote as a rank or alliance that
     // isn't actually yours) — plus, per voteScope: 'r5_only' requires you actually BE an
-    // alliance's R5, real (rank 2) or a state_admin/superadmin self-tagged as also leading
-    // one (myRank() <= 2 here, combined with the allianceId-match clause above which already
-    // forces a real, non-null alliance either way — see accounts' self-tag clause elsewhere in
+    // alliance's R5, real (rank 2) or a state_admin/superadmin tagged into one as its R5 — not
+    // as its R4 (allianceRankOf() == 2 here, combined with the allianceId-match clause above
+    // which already forces a real, non-null alliance either way; the ballot's own
+    // `allianceRank` must match too, since the alliance tie-break in nap-results.ts reads it — see accounts' self-tag clause elsewhere in
     // this file for that same "also leads" standing); 'alliance' just requires belonging to an
     // alliance in this vote's state, any rank. The stateId check bypasses for superadmin
     // (myRank() == 0) same as everywhere else in this file — a superadmin's own account has no
@@ -348,20 +364,21 @@ service cloud.firestore {
         (
           ballotId == (request.resource.data.voteId + '_' + request.resource.data.uid)
           && request.auth.uid == request.resource.data.uid
-          && request.resource.data.keys().hasOnly(['voteId', 'uid', 'email', 'nickname', 'rank', 'allianceId', 'selections', 'votedAt'])
+          && request.resource.data.keys().hasOnly(['voteId', 'uid', 'email', 'nickname', 'rank', 'allianceId', 'allianceRank', 'selections', 'votedAt'])
           && request.resource.data.email == myAccount().email
           && request.resource.data.nickname is string
           && request.resource.data.nickname == myAccount().get('nickname', '')
           && request.resource.data.rank == myRank()
           && request.resource.data.allianceId is string
           && request.resource.data.allianceId == myAccount().get('allianceId', null)
+          && request.resource.data.allianceRank == allianceRankOf(myAccount())
           && request.resource.data.selections is list
           && request.resource.data.selections.size() >= 1
           && request.resource.data.selections.hasOnly(napVote(request.resource.data.voteId).optionIds)
           && (napVote(request.resource.data.voteId).choiceMode == 'multiple' || request.resource.data.selections.size() == 1)
           && napVote(request.resource.data.voteId).deadline > request.time.toMillis()
           && (myRank() == 0 || myAccount().stateId == napVote(request.resource.data.voteId).stateId)
-          && (napVote(request.resource.data.voteId).voteScope != 'r5_only' || myRank() <= 2)
+          && (napVote(request.resource.data.voteId).voteScope != 'r5_only' || allianceRankOf(myAccount()) == 2)
         )
         ||
         // keeping an EXISTING ballot's displayed nickname in sync with the caster's own

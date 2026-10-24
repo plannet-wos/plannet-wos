@@ -57,6 +57,8 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
     'sa-falcon-leader': { uid: 'sa-falcon-leader', email: 'sfl@x.com', role: 'state_admin', rank: 1, stateId: '3038', allianceId: '3038-falcon', status: 'active', mfaEnrolled: true, requestedAt: 1 },
     'r4-falcon-pending': { uid: 'r4-falcon-pending', email: 'r4falcon@x.com', role: 'r4', rank: 3, stateId: '3038', allianceId: '3038-falcon', status: 'pending', mfaEnrolled: true, requestedAt: 1 },
     'r4-falcon-active': { uid: 'r4-falcon-active', email: 'r4falconactive@x.com', role: 'r4', rank: 3, stateId: '3038', allianceId: '3038-falcon', status: 'active', mfaEnrolled: true, requestedAt: 1 },
+    // A state_admin who is an R4 (not the R5) of their alliance — see Account.allianceRank.
+    'sa-r4-falcon': { uid: 'sa-r4-falcon', email: 'sar4@x.com', role: 'state_admin', rank: 1, stateId: '3038', allianceId: '3038-falcon', allianceRank: 3, status: 'active', mfaEnrolled: true, requestedAt: 1 },
     'r5-pending-3038b': { uid: 'r5-pending-3038b', email: 'r5pendingb@x.com', role: 'r5', rank: 2, stateId: '3038', allianceId: '3038-hawk', status: 'pending', mfaEnrolled: true, requestedAt: 1 },
   };
   for (const [uid, data] of Object.entries(accounts)) {
@@ -399,6 +401,47 @@ await check("state_admin CANNOT self-tag as leading an alliance in a DIFFERENT s
   await assertFails(updateDoc(doc(db, 'accounts/sa-3038'), { allianceId: '9999-hq' }));
 });
 
+await check('state_admin self-tags as an R4 (not R5) of an alliance in their own state', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/sa-3038'), { allianceId: '3038-eagle', allianceRank: 3 }));
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/sa-3038'), { allianceId: deleteField(), allianceRank: deleteField() }, { merge: true }));
+});
+
+await check('state_admin can switch their own alliance rank from R5 to R4 without changing alliance', async () => {
+  const db = testEnv.authenticatedContext('sa-falcon-leader').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'accounts/sa-falcon-leader'), { allianceRank: 3 }));
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/sa-falcon-leader'), { allianceRank: deleteField() }, { merge: true }));
+});
+
+await check('state_admin CANNOT self-tag an alliance rank other than R5/R4 (e.g. 1 or 0)', async () => {
+  const db = testEnv.authenticatedContext('sa-3038').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/sa-3038'), { allianceId: '3038-eagle', allianceRank: 1 }));
+  await assertFails(updateDoc(doc(db, 'accounts/sa-3038'), { allianceId: '3038-eagle', allianceRank: 0 }));
+});
+
+await check('R5 CANNOT self-set allianceRank — only superadmin/state_admin have one', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(updateDoc(doc(db, 'accounts/r5-eagle'), { allianceRank: 3 }));
+});
+
+await check('state_admin signup request may carry allianceRank R4', async () => {
+  const db = testEnv.authenticatedContext('newsar4').firestore();
+  await assertSucceeds(setDoc(doc(db, 'accounts/newsar4'), {
+    uid: 'newsar4', email: 'nsa@x.com', role: 'state_admin', rank: 1, stateId: '3038', allianceId: '3038-eagle', allianceRank: 3,
+    status: 'pending', mfaEnrolled: false, requestedAt: Date.now(),
+  }));
+});
+
+await check('signup request CANNOT carry an allianceRank outside R5/R4', async () => {
+  const db = testEnv.authenticatedContext('newsabad').firestore();
+  await assertFails(setDoc(doc(db, 'accounts/newsabad'), {
+    uid: 'newsabad', email: 'nsb@x.com', role: 'state_admin', rank: 1, stateId: '3038', allianceId: '3038-eagle', allianceRank: 1,
+    status: 'pending', mfaEnrolled: false, requestedAt: Date.now(),
+  }));
+});
+
 await check('R5 cannot self-edit their own allianceId at all — theirs is a real permission scope, not a display tag', async () => {
   const db = testEnv.authenticatedContext('r5-eagle').firestore();
   await assertFails(updateDoc(doc(db, 'accounts/r5-eagle'), { allianceId: '3038-wolf' }));
@@ -616,7 +659,7 @@ await check('a vote needs at least 2 options and a future deadline', async () =>
 await check("alliance-vote ballot: R4 CAN vote (voteScope 'alliance'), denormalized fields must match their own account", async () => {
   const db = testEnv.authenticatedContext('r4-active').firestore();
   await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_r4-active'), {
-    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', nickname: '', rank: 3, allianceId: '3038-eagle',
+    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', nickname: '', rank: 3, allianceId: '3038-eagle', allianceRank: 3,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -624,7 +667,7 @@ await check("alliance-vote ballot: R4 CAN vote (voteScope 'alliance'), denormali
 await check("R4 cannot claim someone else's allianceId on their ballot", async () => {
   const db = testEnv.authenticatedContext('r4-active').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r4-active-spoof'), {
-    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', nickname: '', rank: 3, allianceId: '3038-wolf',
+    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', nickname: '', rank: 3, allianceId: '3038-wolf', allianceRank: 3,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -632,7 +675,7 @@ await check("R4 cannot claim someone else's allianceId on their ballot", async (
 await check("a ballot's nickname must match the caster's own account nickname (denormalized, not free text)", async () => {
   const db = testEnv.authenticatedContext('r4-active').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r4-active'), {
-    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', nickname: 'Not my real nickname', rank: 3, allianceId: '3038-eagle',
+    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', nickname: 'Not my real nickname', rank: 3, allianceId: '3038-eagle', allianceRank: 3,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -642,7 +685,7 @@ await check('a ballot correctly reflects a real self-chosen nickname once one is
     setDoc(doc(ctx.firestore(), 'accounts/r4-active'), { nickname: 'Foo' }, { merge: true }));
   const db = testEnv.authenticatedContext('r4-active').firestore();
   await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_r4-active'), {
-    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', nickname: 'Foo', rank: 3, allianceId: '3038-eagle',
+    voteId: 'vote-open', uid: 'r4-active', email: 'r4active@x.com', nickname: 'Foo', rank: 3, allianceId: '3038-eagle', allianceRank: 3,
     selections: ['a'], votedAt: Date.now(),
   }));
   await testEnv.withSecurityRulesDisabled((ctx) =>
@@ -652,7 +695,7 @@ await check('a ballot correctly reflects a real self-chosen nickname once one is
 await check('a ballot cannot select an option that is not one of the vote\'s optionIds', async () => {
   const db = testEnv.authenticatedContext('r5-wolf').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r5-wolf'), {
-    voteId: 'vote-open', uid: 'r5-wolf', email: 'r5wolf@x.com', nickname: '', rank: 2, allianceId: '3038-wolf',
+    voteId: 'vote-open', uid: 'r5-wolf', email: 'r5wolf@x.com', nickname: '', rank: 2, allianceId: '3038-wolf', allianceRank: 2,
     selections: ['not-a-real-option'], votedAt: Date.now(),
   }));
 });
@@ -660,7 +703,7 @@ await check('a ballot cannot select an option that is not one of the vote\'s opt
 await check('a single-choice ballot cannot select more than one option', async () => {
   const db = testEnv.authenticatedContext('r5-wolf').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r5-wolf'), {
-    voteId: 'vote-open', uid: 'r5-wolf', email: 'r5wolf@x.com', nickname: '', rank: 2, allianceId: '3038-wolf',
+    voteId: 'vote-open', uid: 'r5-wolf', email: 'r5wolf@x.com', nickname: '', rank: 2, allianceId: '3038-wolf', allianceRank: 2,
     selections: ['a', 'b'], votedAt: Date.now(),
   }));
 });
@@ -668,11 +711,11 @@ await check('a single-choice ballot cannot select more than one option', async (
 await check('a voter can change their mind before the deadline — re-casting overwrites their ballot', async () => {
   const db = testEnv.authenticatedContext('r5-eagle').firestore();
   await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_r5-eagle'), {
-    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle',
+    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle', allianceRank: 2,
     selections: ['a'], votedAt: Date.now(),
   }));
   await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_r5-eagle'), {
-    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle',
+    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle', allianceRank: 2,
     selections: ['b'], votedAt: Date.now(),
   }));
 });
@@ -680,7 +723,7 @@ await check('a voter can change their mind before the deadline — re-casting ov
 await check('a voter cannot cast a ballot in someone else\'s name', async () => {
   const db = testEnv.authenticatedContext('r5-wolf').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r5-eagle'), {
-    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle',
+    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle', allianceRank: 2,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -694,7 +737,7 @@ await check("'r5_only' vote rejects an R4 ballot even though they belong to an a
     }));
   const db = testEnv.authenticatedContext('r4-active').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-r5-only_r4-active'), {
-    voteId: 'vote-r5-only', uid: 'r4-active', email: 'r4active@x.com', nickname: '', rank: 3, allianceId: '3038-eagle',
+    voteId: 'vote-r5-only', uid: 'r4-active', email: 'r4active@x.com', nickname: '', rank: 3, allianceId: '3038-eagle', allianceRank: 3,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -702,7 +745,7 @@ await check("'r5_only' vote rejects an R4 ballot even though they belong to an a
 await check("'r5_only' vote accepts an R5 ballot", async () => {
   const db = testEnv.authenticatedContext('r5-eagle').firestore();
   await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-r5-only_r5-eagle'), {
-    voteId: 'vote-r5-only', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle',
+    voteId: 'vote-r5-only', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle', allianceRank: 2,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -710,7 +753,7 @@ await check("'r5_only' vote accepts an R5 ballot", async () => {
 await check("'r5_only' vote accepts a state_admin who's self-tagged as leading an alliance — same R5-equivalent standing that tag already grants elsewhere (state-admin.ts's R4 queue)", async () => {
   const db = testEnv.authenticatedContext('sa-falcon-leader').firestore();
   await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-r5-only_sa-falcon-leader'), {
-    voteId: 'vote-r5-only', uid: 'sa-falcon-leader', email: 'sfl@x.com', nickname: '', rank: 1, allianceId: '3038-falcon',
+    voteId: 'vote-r5-only', uid: 'sa-falcon-leader', email: 'sfl@x.com', nickname: '', rank: 1, allianceId: '3038-falcon', allianceRank: 2,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -720,7 +763,7 @@ await check("'r5_only' vote accepts a superadmin who's self-tagged as leading an
     setDoc(doc(ctx.firestore(), 'accounts/super1'), { allianceId: '3038-eagle' }, { merge: true }));
   const db = testEnv.authenticatedContext('super1').firestore();
   await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-r5-only_super1'), {
-    voteId: 'vote-r5-only', uid: 'super1', email: 's@x.com', nickname: '', rank: 0, allianceId: '3038-eagle',
+    voteId: 'vote-r5-only', uid: 'super1', email: 's@x.com', nickname: '', rank: 0, allianceId: '3038-eagle', allianceRank: 2,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -728,7 +771,7 @@ await check("'r5_only' vote accepts a superadmin who's self-tagged as leading an
 await check('the same self-tagged superadmin can also vote on an ALLIANCE-scope vote', async () => {
   const db = testEnv.authenticatedContext('super1').firestore();
   await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_super1'), {
-    voteId: 'vote-open', uid: 'super1', email: 's@x.com', nickname: '', rank: 0, allianceId: '3038-eagle',
+    voteId: 'vote-open', uid: 'super1', email: 's@x.com', nickname: '', rank: 0, allianceId: '3038-eagle', allianceRank: 2,
     selections: ['a'], votedAt: Date.now(),
   }));
   // restore super1's alliance tag to cleared, matching what later tests expect.
@@ -739,7 +782,7 @@ await check('the same self-tagged superadmin can also vote on an ALLIANCE-scope 
 await check('a plain superadmin (no alliance tag) still cannot vote on an r5_only vote — no alliance to be the R5 of', async () => {
   const db = testEnv.authenticatedContext('super1').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-r5-only_super1-plain'), {
-    voteId: 'vote-r5-only', uid: 'super1', email: 's@x.com', nickname: '', rank: 0, allianceId: '',
+    voteId: 'vote-r5-only', uid: 'super1', email: 's@x.com', nickname: '', rank: 0, allianceId: '', allianceRank: 2,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -747,7 +790,7 @@ await check('a plain superadmin (no alliance tag) still cannot vote on an r5_onl
 await check('a plain state_admin with no allianceId cannot vote on an alliance-scope vote', async () => {
   const db = testEnv.authenticatedContext('sa-3038').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_sa-3038'), {
-    voteId: 'vote-open', uid: 'sa-3038', email: 'sa3038@x.com', nickname: '', rank: 1, allianceId: '',
+    voteId: 'vote-open', uid: 'sa-3038', email: 'sa3038@x.com', nickname: '', rank: 1, allianceId: '', allianceRank: 2,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -761,7 +804,7 @@ await check('votes stop accepting ballots once the deadline has passed', async (
     }));
   const db = testEnv.authenticatedContext('r5-eagle').firestore();
   await assertFails(setDoc(doc(db, 'nap_ballots/vote-closed_r5-eagle'), {
-    voteId: 'vote-closed', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle',
+    voteId: 'vote-closed', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle', allianceRank: 2,
     selections: ['a'], votedAt: Date.now(),
   }));
 });
@@ -773,7 +816,7 @@ await check('votes stop accepting ballots once the deadline has passed', async (
 await check("the voter themselves refreshes their OWN ballot's nickname on an ALREADY-CLOSED vote — the whole point of this carve-out", async () => {
   await testEnv.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'nap_ballots/vote-closed_r5-eagle'), {
-      voteId: 'vote-closed', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle',
+      voteId: 'vote-closed', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle', allianceRank: 2,
       selections: ['a'], votedAt: Date.now() - 4000,
     });
     // the account's nickname changed FIRST (e.g. via profile.ts) -- the ballot is catching up.
@@ -826,6 +869,49 @@ await check('a DIFFERENT state\'s state_admin cannot hide or delete this vote', 
   await assertFails(deleteDoc(doc(db, 'nap_votes/vote-open')));
 });
 
+// --- nap_ballots: a state_admin who is an R4 (allianceRank 3) of their alliance ---
+await check("'r5_only' vote rejects a state_admin who is their alliance's R4", async () => {
+  const db = testEnv.authenticatedContext('sa-r4-falcon').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-r5-only_sa-r4-falcon'), {
+    voteId: 'vote-r5-only', uid: 'sa-r4-falcon', email: 'sar4@x.com', nickname: '', rank: 1, allianceId: '3038-falcon', allianceRank: 3,
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check("a state_admin who is R4 CANNOT claim allianceRank R5 on their ballot", async () => {
+  const db = testEnv.authenticatedContext('sa-r4-falcon').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-r5-only_sa-r4-falcon'), {
+    voteId: 'vote-r5-only', uid: 'sa-r4-falcon', email: 'sar4@x.com', nickname: '', rank: 1, allianceId: '3038-falcon', allianceRank: 2,
+    selections: ['a'], votedAt: Date.now(),
+  }));
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_sa-r4-falcon'), {
+    voteId: 'vote-open', uid: 'sa-r4-falcon', email: 'sar4@x.com', nickname: '', rank: 1, allianceId: '3038-falcon', allianceRank: 2,
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check("a state_admin who is R4 CAN vote on an alliance-scope vote, as R4", async () => {
+  const db = testEnv.authenticatedContext('sa-r4-falcon').firestore();
+  await assertSucceeds(setDoc(doc(db, 'nap_ballots/vote-open_sa-r4-falcon'), {
+    voteId: 'vote-open', uid: 'sa-r4-falcon', email: 'sar4@x.com', nickname: '', rank: 1, allianceId: '3038-falcon', allianceRank: 3,
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check('a ballot without allianceRank is rejected (an older cached client must reload)', async () => {
+  const db = testEnv.authenticatedContext('r5-eagle').firestore();
+  await assertFails(setDoc(doc(db, 'nap_ballots/vote-open_r5-eagle'), {
+    voteId: 'vote-open', uid: 'r5-eagle', email: 'r5eagle@x.com', nickname: '', rank: 2, allianceId: '3038-eagle',
+    selections: ['a'], votedAt: Date.now(),
+  }));
+});
+
+await check('a state_admin who is R4 still keeps state_admin powers: hides a vote in their state', async () => {
+  const db = testEnv.authenticatedContext('sa-r4-falcon').firestore();
+  await assertSucceeds(updateDoc(doc(db, 'nap_votes/vote-open'), { hidden: true }));
+  await assertSucceeds(updateDoc(doc(db, 'nap_votes/vote-open'), { hidden: false }));
+});
+
 await check('state_admin deletes a vote and its ballots (cascade)', async () => {
   const db = testEnv.authenticatedContext('sa-3038').firestore();
   await assertSucceeds(deleteDoc(doc(db, 'nap_ballots/vote-open_r5-eagle')));
@@ -845,6 +931,21 @@ await testEnv.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'accounts/dir-r5'), { uid: 'dir-r5', email: 'dr5@x.com', role: 'r5', rank: 2, stateId: '4040', allianceId: '4040-fox', status: 'active', mfaEnrolled: true, requestedAt: 1 });
   await setDoc(doc(db, 'accounts/dir-r4'), { uid: 'dir-r4', email: 'dr4@x.com', role: 'r4', rank: 3, stateId: '4040', allianceId: '4040-fox', status: 'active', mfaEnrolled: true, requestedAt: 1 });
   await setDoc(doc(db, 'accounts/dir-pending'), { uid: 'dir-pending', email: 'dp@x.com', role: 'r4', rank: 3, stateId: '4040', allianceId: '4040-fox', status: 'pending', mfaEnrolled: true, requestedAt: 1 });
+});
+
+await check('approver_directory: a state_admin who is R4 mirrors their allianceRank too', async () => {
+  const db = testEnv.authenticatedContext('sa-r4-falcon').firestore();
+  await assertFails(setDoc(doc(db, 'approver_directory/sa-r4-falcon'), { uid: 'sa-r4-falcon', rank: 1, stateId: '3038', allianceId: '3038-falcon' }));
+  await assertSucceeds(setDoc(doc(db, 'approver_directory/sa-r4-falcon'), { uid: 'sa-r4-falcon', rank: 1, stateId: '3038', allianceId: '3038-falcon', allianceRank: 3 }));
+});
+
+await check("approver_directory: an entry whose allianceRank no longer matches the account is stale — anyone may prune it", async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/sa-r4-falcon'), { allianceRank: 2 }, { merge: true }));
+  const db = testEnv.authenticatedContext('r4-active').firestore();
+  await assertSucceeds(deleteDoc(doc(db, 'approver_directory/sa-r4-falcon')));
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/sa-r4-falcon'), { allianceRank: 3 }, { merge: true }));
 });
 
 await check('approver_directory: state_admin mirrors their own account exactly', async () => {

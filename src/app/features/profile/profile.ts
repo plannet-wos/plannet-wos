@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import * as QRCode from 'qrcode';
@@ -7,12 +7,14 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AuthService } from '../../core/services/auth.service';
 import { AccountsService } from '../../core/services/accounts.service';
 import { RANK, ROLE_LABEL } from '../../core/constants/roles';
+import { AllianceRank } from '../../core/models/account.model';
 import { DisplayNamePipe } from '../../shared/display-name.pipe';
 
 /**
@@ -32,6 +34,7 @@ import { DisplayNamePipe } from '../../shared/display-name.pipe';
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MatButtonModule,
     MatIconModule,
     MatSnackBarModule,
@@ -159,18 +162,27 @@ export class ProfileComponent {
   // plain text field trusts that server-side check rather than pre-validating client-side
   // (keeping this simple rather than building a cascading state+alliance picker for what's
   // a "nice to have" identification tag, not a permission grant). ---
+  readonly RANK = RANK;
   tagAllianceId = '';
+  tagAllianceRank: AllianceRank = RANK.R5;
 
   canTagAlliance(): boolean {
     const rank = this.account()?.rank;
     return rank === RANK.SUPERADMIN || rank === RANK.STATE_ADMIN;
   }
 
+  /** Seeds the rank picker from the live account, so changing only the rank keeps the alliance. */
+  private readonly syncTagAllianceRank = effect(() => {
+    this.tagAllianceRank = this.account()?.allianceRank ?? RANK.R5;
+  });
+
   async saveAllianceTag(): Promise<void> {
     const uid = this.user()?.uid;
-    if (!uid || !this.tagAllianceId) return;
+    // A blank ID keeps the current alliance — that's how the rank alone gets changed.
+    const allianceId = this.tagAllianceId || this.account()?.allianceId;
+    if (!uid || !allianceId) return;
     try {
-      await this.accounts.setOwnAllianceTag(uid, this.tagAllianceId);
+      await this.accounts.setOwnAllianceTag(uid, allianceId, this.tagAllianceRank);
       this.tagAllianceId = '';
       this.snackBar.open('Updated', '', { duration: 2000 });
     } catch (err) {

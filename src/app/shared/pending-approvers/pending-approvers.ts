@@ -1,7 +1,7 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { of, switchMap } from 'rxjs';
-import { Account, ApproverEntry } from '../../core/models/account.model';
+import { Account, ApproverEntry, allianceRankOf } from '../../core/models/account.model';
 import { AccountsService } from '../../core/services/accounts.service';
 import { RANK } from '../../core/constants/roles';
 import { DisplayNamePipe } from '../display-name.pipe';
@@ -12,7 +12,7 @@ import { DisplayNamePipe } from '../display-name.pipe';
  * of waiting blind. Mirrors firestore.rules' sameScope() approval hierarchy:
  *   • state_admin request → a superadmin (no list: there's only ever the one, hand-provisioned)
  *   • R5 request → any state_admin of their state
- *   • R4 request → their own alliance's R5 (including a state_admin self-tagged as leading it),
+ *   • R4 request → their own alliance's R5 (including a state_admin tagged in as its R5, never as its R4),
  *     with the state's other state_admins listed as the escalation path rules also allow
  * Names come from approver_directory (see ApproverEntry's doc comment), never from accounts.
  */
@@ -36,10 +36,10 @@ export class PendingApproversComponent {
     { initialValue: [] as ApproverEntry[] },
   );
 
-  /** R4 requests only: whoever leads the candidate's own alliance — a real R5, or a state_admin self-tagged as its R5. */
+  /** R4 requests only: whoever leads the candidate's own alliance — a real R5, or a state_admin tagged in as its R5 (one tagged in as its R4 is just listed under stateAdmins). */
   readonly allianceLeaders = computed(() => {
     const allianceId = this.account().allianceId;
-    return this.approvers().filter((a) => !!allianceId && a.allianceId === allianceId);
+    return this.approvers().filter((a) => !!allianceId && a.allianceId === allianceId && allianceRankOf(a) === RANK.R5);
   });
 
   /** State admins of the candidate's state — the approvers for an R5, the fallback for an R4 (minus anyone already listed as their alliance's leader). */

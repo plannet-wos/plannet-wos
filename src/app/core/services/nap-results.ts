@@ -36,9 +36,9 @@ export interface NapTally {
  *
  * An option landing at EXACTLY half (only possible when the alliance cast an even number of
  * ballots) doesn't default to a denial — the alliance's own R5 breaks the tie: if any ballot
- * from an R5-equivalent voter (real R5, rank 2 — or a state_admin/superadmin self-tagged as
- * leading this alliance, same "R5 in substance" standing 'r5_only' scope already grants
- * elsewhere in NAP) included that option, the tie resolves in favor; otherwise it's denied like
+ * from an R5-equivalent voter (real R5, rank 2 — or a state_admin/superadmin tagged into this
+ * alliance as its R5, never as its R4: the ballot's own `allianceRank`, same "R5 in substance"
+ * standing 'r5_only' scope already grants elsewhere in NAP) included that option, the tie resolves in favor; otherwise it's denied like
  * any other non-majority option. (An alliance with more than one such R5-equivalent voter — see
  * "multiple accounts sharing a rank+scope" — breaks the tie if ANY of them backed the option,
  * not all of them; flag if you want different handling for that edge case.)
@@ -121,7 +121,7 @@ function allianceMajorityPicks(members: NapBallot[], optionIds: string[]): strin
     }
   }
   const majorityThreshold = members.length / 2;
-  const r5Ballots = members.filter((b) => b.rank <= RANK.R5);
+  const r5Ballots = members.filter((b) => (b.allianceRank ?? b.rank) <= RANK.R5);
   const picks: string[] = [];
   for (const [optionId, c] of perOption) {
     const isTie = c === majorityThreshold;

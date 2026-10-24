@@ -48,22 +48,29 @@
   @if (canTagAlliance()) {
     <mat-card class="form-card">
       <mat-card-header>
-        <mat-card-title>Also lead an alliance</mat-card-title>
+        <mat-card-title>Also in an alliance</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <p>
           @if (account()?.allianceId) {
-            Currently also shown as leading <strong>{{ account()?.allianceId }}</strong>.
+            Currently also shown as {{ account()?.allianceRank === RANK.R4 ? 'R4' : 'R5' }} of <strong>{{ account()?.allianceId }}</strong>.
           } @else {
-            Not currently tagged as leading any alliance.
+            Not currently tagged into any alliance.
           }
         </p>
         <form (ngSubmit)="saveAllianceTag()" class="inline-form">
           <mat-form-field appearance="outline">
             <mat-label>Alliance ID (e.g. 3038-hoc)</mat-label>
-            <input matInput [(ngModel)]="tagAllianceId" name="tagAllianceId" />
+            <input matInput [(ngModel)]="tagAllianceId" name="tagAllianceId" [placeholder]="account()?.allianceId ?? ''" />
           </mat-form-field>
-          <button mat-flat-button color="primary" type="submit" [disabled]="!tagAllianceId">Set</button>
+          <mat-form-field appearance="outline">
+            <mat-label>Your rank there</mat-label>
+            <mat-select [(ngModel)]="tagAllianceRank" name="tagAllianceRank">
+              <mat-option [value]="RANK.R5">R5</mat-option>
+              <mat-option [value]="RANK.R4">R4</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button mat-flat-button color="primary" type="submit" [disabled]="!tagAllianceId && !account()?.allianceId">Set</button>
           @if (account()?.allianceId) {
             <button mat-button type="button" (click)="clearAllianceTag()">Clear</button>
           }

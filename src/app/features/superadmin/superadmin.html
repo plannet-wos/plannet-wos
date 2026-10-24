@@ -167,7 +167,7 @@
             </mat-select>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>{{ editNeedsAlliance() ? 'Alliance' : 'Also leads alliance (optional)' }}</mat-label>
+            <mat-label>{{ editNeedsAlliance() ? 'Alliance' : 'Also in alliance (optional)' }}</mat-label>
             <mat-select [(ngModel)]="editAllianceSlug" name="editAllianceSlug" [required]="editNeedsAlliance()">
               @if (!editNeedsAlliance()) {
                 <mat-option value="">None</mat-option>
@@ -177,6 +177,15 @@
               }
             </mat-select>
           </mat-form-field>
+          @if (!editNeedsAlliance() && editAllianceSlug) {
+            <mat-form-field appearance="outline">
+              <mat-label>Rank in that alliance</mat-label>
+              <mat-select [(ngModel)]="editAllianceRank" name="editAllianceRank">
+                <mat-option [value]="RANK.R5">R5</mat-option>
+                <mat-option [value]="RANK.R4">R4</mat-option>
+              </mat-select>
+            </mat-form-field>
+          }
           <mat-form-field appearance="outline">
             <mat-label>Nickname</mat-label>
             <input matInput [(ngModel)]="editNickname" name="editNickname" maxlength="30" />
