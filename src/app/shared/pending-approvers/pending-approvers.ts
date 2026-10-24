@@ -12,7 +12,7 @@ import { DisplayNamePipe } from '../display-name.pipe';
  * of waiting blind. Mirrors firestore.rules' sameScope() approval hierarchy:
  *   • state_admin request → a superadmin (no list: there's only ever the one, hand-provisioned)
  *   • R5 request → any state_admin of their state
- *   • R4 request → their own alliance's R5 (including a state_admin tagged in as its R5, never as its R4),
+ *   • R4 request → their own alliance's R5 (including a state_admin or superadmin tagged in as its R5, never as its R4),
  *     with the state's other state_admins listed as the escalation path rules also allow
  * Names come from approver_directory (see ApproverEntry's doc comment), never from accounts.
  */

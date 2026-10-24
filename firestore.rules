@@ -263,15 +263,21 @@ service cloud.firestore {
     // can't read anyone else's accounts/{uid} doc, and opening that up would expose emails.
     // Read: any signed-in user (a candidate is signed in from signup onward); nothing here
     // is more than what nap_ballots already shows publicly (nickname + rank + alliance).
-    // Write: only the owner, only while active as rank 1/2, and only an exact copy of their
-    // own account's rank/stateId/allianceId/nickname. Delete: the owner, or anyone at all once
+    // Write: only the owner, only while active as rank 1/2 — or a superadmin tagged into an
+    // alliance, so they show up as its R5 too — and only an exact copy of their own account's
+    // rank/stateId/allianceId/allianceRank/nickname. A superadmin's account has no stateId, so
+    // their entry's stateId is their alliance's (the "{stateId}-…" prefix of allianceId) —
+    // see approverStateOf(); that's what candidates query the directory by. Delete: the owner, or anyone at all once
     // the entry no longer matches the live account (revoked, re-ranked, moved, renamed) — that
     // check is self-verifying, so letting any signed-in client prune a stale entry is safe.
+    function approverStateOf(acc) {
+      return acc.rank == 0 ? acc.get('allianceId', '').split('-')[0] : acc.get('stateId', null);
+    }
     function approverEntryIsStale(uid, entry) {
       return !exists(/databases/$(database)/documents/accounts/$(uid))
         || accountFor(uid).status != 'active'
         || accountFor(uid).rank != entry.rank
-        || accountFor(uid).get('stateId', null) != entry.get('stateId', null)
+        || approverStateOf(accountFor(uid)) != entry.get('stateId', null)
         || accountFor(uid).get('allianceId', null) != entry.get('allianceId', null)
         || accountFor(uid).get('allianceRank', null) != entry.get('allianceRank', null)
         || accountFor(uid).get('nickname', null) != entry.get('nickname', null);
@@ -280,11 +286,12 @@ service cloud.firestore {
     match /approver_directory/{uid} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null && request.auth.uid == uid
-        && isActiveAccount() && myRank() in [1, 2]
+        && isActiveAccount()
+        && (myRank() in [1, 2] || (myRank() == 0 && myAccount().get('allianceId', null) != null))
         && request.resource.data.keys().hasOnly(['uid', 'rank', 'stateId', 'allianceId', 'allianceRank', 'nickname'])
         && request.resource.data.uid == uid
         && request.resource.data.rank == myRank()
-        && request.resource.data.get('stateId', null) == myAccount().get('stateId', null)
+        && request.resource.data.get('stateId', null) == approverStateOf(myAccount())
         && request.resource.data.get('allianceId', null) == myAccount().get('allianceId', null)
         && request.resource.data.get('allianceRank', null) == myAccount().get('allianceRank', null)
         && request.resource.data.get('nickname', null) == myAccount().get('nickname', null);

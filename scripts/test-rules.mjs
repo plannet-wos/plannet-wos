@@ -948,6 +948,32 @@ await check("approver_directory: an entry whose allianceRank no longer matches t
     setDoc(doc(ctx.firestore(), 'accounts/sa-r4-falcon'), { allianceRank: 3 }, { merge: true }));
 });
 
+await check('approver_directory: a superadmin with no alliance gets no entry', async () => {
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertFails(setDoc(doc(db, 'approver_directory/super1'), { uid: 'super1', rank: 0 }));
+});
+
+await check("approver_directory: a superadmin tagged into an alliance mirrors it, listed under that alliance's state", async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/super1'), { allianceId: '3038-eagle' }, { merge: true }));
+  const db = testEnv.authenticatedContext('super1').firestore();
+  await assertFails(setDoc(doc(db, 'approver_directory/super1'), { uid: 'super1', rank: 0, allianceId: '3038-eagle' }));
+  await assertFails(setDoc(doc(db, 'approver_directory/super1'), { uid: 'super1', rank: 0, stateId: '9999', allianceId: '3038-eagle' }));
+  await assertSucceeds(setDoc(doc(db, 'approver_directory/super1'), { uid: 'super1', rank: 0, stateId: '3038', allianceId: '3038-eagle' }));
+});
+
+await check("approver_directory: a superadmin's entry is NOT stale while it matches — nobody else can prune it", async () => {
+  const db = testEnv.authenticatedContext('r4-active').firestore();
+  await assertFails(deleteDoc(doc(db, 'approver_directory/super1')));
+});
+
+await check("approver_directory: once the superadmin clears their alliance tag, anyone may prune the stale entry", async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) =>
+    setDoc(doc(ctx.firestore(), 'accounts/super1'), { allianceId: deleteField() }, { merge: true }));
+  const db = testEnv.authenticatedContext('r4-active').firestore();
+  await assertSucceeds(deleteDoc(doc(db, 'approver_directory/super1')));
+});
+
 await check('approver_directory: state_admin mirrors their own account exactly', async () => {
   const db = testEnv.authenticatedContext('dir-sa').firestore();
   await assertSucceeds(setDoc(doc(db, 'approver_directory/dir-sa'), { uid: 'dir-sa', rank: 1, stateId: '4040', allianceId: '4040-owl', nickname: 'Owly' }));
