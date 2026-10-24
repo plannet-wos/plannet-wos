@@ -17,7 +17,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { AccountsService } from '../../core/services/accounts.service';
 import { AllianceService } from '../../core/services/alliance.service';
 import { RANK, Rank, ROLE_LABEL } from '../../core/constants/roles';
-import { Account } from '../../core/models/account.model';
+import { Account, allianceRankOf } from '../../core/models/account.model';
 import { Alliance, allianceId as composeAllianceId } from '../../core/models/alliance.model';
 import { displayName } from '../../core/utils/display-name.util';
 import { DisplayNamePipe } from '../../shared/display-name.pipe';
@@ -90,14 +90,22 @@ export class StateAdminComponent {
         return combineLatest([
           this.accounts.activeR5ForState$(this.stateId),
           this.accounts.stateAdminAlliesForState$(this.stateId),
-        ]).pipe(map(([r5s, taggedAdmins]) => [...r5s, ...taggedAdmins]));
+          this.accounts.approversForState$(this.stateId),
+        ]).pipe(map(([r5s, taggedAdmins, approvers]) => [
+          ...r5s,
+          ...taggedAdmins,
+          // A superadmin who is one of this state's alliance R5s. A state_admin can't read a
+          // superadmin's account doc, so this comes from their public approver_directory entry
+          // (nickname/alliance only) — enough for this read-only row, never edited from here.
+          ...(approvers.filter((a) => a.rank === RANK.SUPERADMIN && allianceRankOf(a) === RANK.R5) as Account[]),
+        ]));
       }),
     ),
     { initialValue: [] as Account[] },
   );
 
   roleLabelFor(account: Account): string {
-    return this.roleLabel[account.rank === RANK.STATE_ADMIN ? 'state_admin' : 'r5'];
+    return this.roleLabel[account.rank === RANK.SUPERADMIN ? 'superadmin' : account.rank === RANK.STATE_ADMIN ? 'state_admin' : 'r5'];
   }
 
   // --- R4 queue: state-wide (every alliance in this state) for state_admin/superadmin — see

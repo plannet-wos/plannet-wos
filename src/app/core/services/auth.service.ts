@@ -151,22 +151,26 @@ export class AuthService {
 
   /**
    * Keeps this account's own approver_directory/{uid} entry (see ApproverEntry's doc comment)
-   * an exact copy of its live account — written whenever an active state_admin/R5's account
-   * snapshot fires, so a nickname change, self-tagged alliance, or fresh approval shows up for
+   * an exact copy of its live account — written whenever an active state_admin/R5's (or an
+   * alliance-tagged superadmin's) account snapshot fires, so a nickname change, self-tagged alliance, or fresh approval shows up for
    * waiting candidates on this same session, and removed if this account is active at any
    * other rank (e.g. demoted to R4). Fire-and-forget: a failure here only means a candidate
    * sees a slightly stale (or missing) name, never something that should block the app.
    */
   private syncApproverDirectory(account: Account): void {
     const ref = doc(this.firestore, `approver_directory/${account.uid}`);
-    if (account.rank !== RANK.STATE_ADMIN && account.rank !== RANK.R5) {
+    const taggedSuperadmin = account.rank === RANK.SUPERADMIN && !!account.allianceId;
+    if (account.rank !== RANK.STATE_ADMIN && account.rank !== RANK.R5 && !taggedSuperadmin) {
       deleteDoc(ref).catch(() => {});
       return;
     }
+    // A superadmin has no stateId of their own; their entry is listed under their alliance's
+    // state instead (firestore.rules' approverStateOf() requires exactly that).
+    const stateId = taggedSuperadmin ? account.allianceId!.split('-')[0] : account.stateId;
     const entry: ApproverEntry = {
       uid: account.uid,
       rank: account.rank,
-      ...(account.stateId !== undefined ? { stateId: account.stateId } : {}),
+      ...(stateId !== undefined ? { stateId } : {}),
       ...(account.allianceId !== undefined ? { allianceId: account.allianceId } : {}),
       ...(account.allianceRank !== undefined ? { allianceRank: account.allianceRank } : {}),
       ...(account.nickname !== undefined ? { nickname: account.nickname } : {}),
