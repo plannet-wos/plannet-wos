@@ -1,0 +1,40 @@
+<div class="pending-approvers">
+  @switch (account().rank) {
+    @case (RANK.STATE_ADMIN) {
+      <p>A Plannet WOS superadmin approves State Admin requests. Reach out to them directly if it's taking a while.</p>
+    }
+    @case (RANK.R5) {
+      <p class="heading">Who can approve you: the State Admins of state {{ account().stateId }}</p>
+      @if (stateAdmins().length) {
+        <ul>
+          @for (a of stateAdmins(); track a.uid) {
+            <li>{{ a | displayName }}</li>
+          }
+        </ul>
+      } @else {
+        <p class="empty">None listed yet. Ask in your state chat who the State Admin is.</p>
+      }
+    }
+    @case (RANK.R4) {
+      <p class="heading">Who can approve you: your alliance's R5</p>
+      @if (allianceLeaders().length) {
+        <ul>
+          @for (a of allianceLeaders(); track a.uid) {
+            <li>{{ a | displayName }}</li>
+          }
+        </ul>
+      } @else {
+        <p class="empty">None listed yet. Ask your R5 in alliance chat.</p>
+      }
+      @if (stateAdmins().length) {
+        <p class="heading">The State Admins of state {{ account().stateId }} can also approve you</p>
+        <ul>
+          @for (a of stateAdmins(); track a.uid) {
+            <li>{{ a | displayName }}</li>
+          }
+        </ul>
+      }
+    }
+  }
+  <p class="hint">Message them in-game so they know your request is waiting.</p>
+</div>

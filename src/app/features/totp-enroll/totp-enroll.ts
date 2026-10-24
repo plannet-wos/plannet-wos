@@ -10,6 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../core/services/auth.service';
 import { AccountsService } from '../../core/services/accounts.service';
+import { PendingApproversComponent } from '../../shared/pending-approvers/pending-approvers';
 
 @Component({
   selector: 'app-totp-enroll',
@@ -20,6 +21,7 @@ import { AccountsService } from '../../core/services/accounts.service';
     MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
+    PendingApproversComponent,
   ],
   templateUrl: './totp-enroll.html',
   styleUrl: './totp-enroll.scss',
@@ -37,6 +39,7 @@ export class TotpEnrollComponent implements OnInit {
   readonly confirming = signal(false);
   readonly error = signal('');
   readonly done = signal(false);
+  readonly account = this.auth.account;
 
   // Firebase Auth won't let us start MFA enrollment until the candidate's email is verified
   // (see AuthService.checkEmailVerified()'s doc comment) — this used to just throw a raw,

@@ -10,6 +10,9 @@
         <div class="center"><mat-spinner diameter="32"></mat-spinner></div>
       } @else if (done()) {
         <p class="success">Authenticator enrolled. Your request is now waiting for approval.</p>
+        @if (account(); as acc) {
+          <app-pending-approvers [account]="acc" />
+        }
         <button mat-flat-button color="primary" (click)="goToLogin()">Back to login</button>
       } @else if (needsVerification()) {
         <p>Verify your email first — Firebase requires it before an authenticator app can be enrolled.</p>

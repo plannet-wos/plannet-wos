@@ -838,6 +838,70 @@ await check('superadmin deletes a vote in any state', async () => {
   await assertSucceeds(deleteDoc(doc(db, 'nap_votes/vote-r5-only')));
 });
 
+// --- approver_directory: public, owner-written, rules-verified mirror of approvers ---
+await testEnv.withSecurityRulesDisabled(async (ctx) => {
+  const db = ctx.firestore();
+  await setDoc(doc(db, 'accounts/dir-sa'), { uid: 'dir-sa', email: 'dsa@x.com', role: 'state_admin', rank: 1, stateId: '4040', allianceId: '4040-owl', nickname: 'Owly', status: 'active', mfaEnrolled: true, requestedAt: 1 });
+  await setDoc(doc(db, 'accounts/dir-r5'), { uid: 'dir-r5', email: 'dr5@x.com', role: 'r5', rank: 2, stateId: '4040', allianceId: '4040-fox', status: 'active', mfaEnrolled: true, requestedAt: 1 });
+  await setDoc(doc(db, 'accounts/dir-r4'), { uid: 'dir-r4', email: 'dr4@x.com', role: 'r4', rank: 3, stateId: '4040', allianceId: '4040-fox', status: 'active', mfaEnrolled: true, requestedAt: 1 });
+  await setDoc(doc(db, 'accounts/dir-pending'), { uid: 'dir-pending', email: 'dp@x.com', role: 'r4', rank: 3, stateId: '4040', allianceId: '4040-fox', status: 'pending', mfaEnrolled: true, requestedAt: 1 });
+});
+
+await check('approver_directory: state_admin mirrors their own account exactly', async () => {
+  const db = testEnv.authenticatedContext('dir-sa').firestore();
+  await assertSucceeds(setDoc(doc(db, 'approver_directory/dir-sa'), { uid: 'dir-sa', rank: 1, stateId: '4040', allianceId: '4040-owl', nickname: 'Owly' }));
+});
+
+await check('approver_directory: R5 with no nickname mirrors their own account', async () => {
+  const db = testEnv.authenticatedContext('dir-r5').firestore();
+  await assertSucceeds(setDoc(doc(db, 'approver_directory/dir-r5'), { uid: 'dir-r5', rank: 2, stateId: '4040', allianceId: '4040-fox' }));
+});
+
+await check('approver_directory: owner cannot claim a different alliance, rank, or extra fields', async () => {
+  const db = testEnv.authenticatedContext('dir-r5').firestore();
+  await assertFails(setDoc(doc(db, 'approver_directory/dir-r5'), { uid: 'dir-r5', rank: 2, stateId: '4040', allianceId: '4040-owl' }));
+  await assertFails(setDoc(doc(db, 'approver_directory/dir-r5'), { uid: 'dir-r5', rank: 1, stateId: '4040', allianceId: '4040-fox' }));
+  await assertFails(setDoc(doc(db, 'approver_directory/dir-r5'), { uid: 'dir-r5', rank: 2, stateId: '4040', allianceId: '4040-fox', email: 'dr5@x.com' }));
+});
+
+await check('approver_directory: an R4 or pending candidate cannot list themselves', async () => {
+  await assertFails(setDoc(doc(testEnv.authenticatedContext('dir-r4').firestore(), 'approver_directory/dir-r4'), { uid: 'dir-r4', rank: 3, stateId: '4040', allianceId: '4040-fox' }));
+  await assertFails(setDoc(doc(testEnv.authenticatedContext('dir-pending').firestore(), 'approver_directory/dir-pending'), { uid: 'dir-pending', rank: 3, stateId: '4040', allianceId: '4040-fox' }));
+});
+
+await check('approver_directory: nobody can write someone else\'s entry', async () => {
+  const db = testEnv.authenticatedContext('dir-sa').firestore();
+  await assertFails(setDoc(doc(db, 'approver_directory/dir-r5'), { uid: 'dir-r5', rank: 2, stateId: '4040', allianceId: '4040-fox' }));
+});
+
+await check('approver_directory: a pending candidate can read their state\'s approvers', async () => {
+  const db = testEnv.authenticatedContext('dir-pending').firestore();
+  const snap = await assertSucceeds(getDocs(query(collection(db, 'approver_directory'), where('stateId', '==', '4040'))));
+  assert.equal(snap.size, 2);
+});
+
+await check('approver_directory: signed-out visitors cannot read it', async () => {
+  const db = testEnv.unauthenticatedContext().firestore();
+  await assertFails(getDoc(doc(db, 'approver_directory/dir-sa')));
+});
+
+await check('approver_directory: a still-accurate entry cannot be deleted by someone else', async () => {
+  const db = testEnv.authenticatedContext('dir-pending').firestore();
+  await assertFails(deleteDoc(doc(db, 'approver_directory/dir-r5')));
+});
+
+await check('approver_directory: once revoked, anyone signed in can prune the stale entry', async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'accounts/dir-r5'), { status: 'suspended' }));
+  const db = testEnv.authenticatedContext('dir-sa').firestore();
+  await assertSucceeds(deleteDoc(doc(db, 'approver_directory/dir-r5')));
+});
+
+await check('approver_directory: a renamed approver\'s entry becomes prunable', async () => {
+  await testEnv.withSecurityRulesDisabled((ctx) => updateDoc(doc(ctx.firestore(), 'accounts/dir-sa'), { nickname: 'Owlbert' }));
+  const db = testEnv.authenticatedContext('dir-pending').firestore();
+  await assertSucceeds(deleteDoc(doc(db, 'approver_directory/dir-sa')));
+});
+
 await testEnv.cleanup();
 
 console.log(`\n${passed} passed`);

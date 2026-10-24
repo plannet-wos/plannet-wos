@@ -1,6 +1,6 @@
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
-import { Firestore, doc, onSnapshot, setDoc } from '@angular/fire/firestore';
+import { Firestore, doc, onSnapshot, setDoc, deleteDoc } from '@angular/fire/firestore';
 import {
   User,
   createUserWithEmailAndPassword,
@@ -21,8 +21,8 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
 } from 'firebase/auth';
-import { Account } from '../models/account.model';
-import { Rank } from '../constants/roles';
+import { Account, ApproverEntry } from '../models/account.model';
+import { RANK, Rank } from '../constants/roles';
 
 /** Thrown by login() when the account has TOTP enrolled — caller must prompt for a code and call completeMfaSignIn(). */
 export class MfaRequiredError extends Error {
@@ -139,6 +139,7 @@ export class AuthService {
         this.wasActive = isActiveNow;
         this._account.set(account);
         this.settledResolve();
+        if (account && isActiveNow) this.syncApproverDirectory(account);
       });
     } else {
       this.wasActive = false;
@@ -147,6 +148,30 @@ export class AuthService {
   }
 
   private wasActive = false;
+
+  /**
+   * Keeps this account's own approver_directory/{uid} entry (see ApproverEntry's doc comment)
+   * an exact copy of its live account — written whenever an active state_admin/R5's account
+   * snapshot fires, so a nickname change, self-tagged alliance, or fresh approval shows up for
+   * waiting candidates on this same session, and removed if this account is active at any
+   * other rank (e.g. demoted to R4). Fire-and-forget: a failure here only means a candidate
+   * sees a slightly stale (or missing) name, never something that should block the app.
+   */
+  private syncApproverDirectory(account: Account): void {
+    const ref = doc(this.firestore, `approver_directory/${account.uid}`);
+    if (account.rank !== RANK.STATE_ADMIN && account.rank !== RANK.R5) {
+      deleteDoc(ref).catch(() => {});
+      return;
+    }
+    const entry: ApproverEntry = {
+      uid: account.uid,
+      rank: account.rank,
+      ...(account.stateId !== undefined ? { stateId: account.stateId } : {}),
+      ...(account.allianceId !== undefined ? { allianceId: account.allianceId } : {}),
+      ...(account.nickname !== undefined ? { nickname: account.nickname } : {}),
+    };
+    setDoc(ref, entry).catch(() => {});
+  }
 
   /** Creates the Firebase Auth user and sends a verification email. Does not touch Firestore — see AccountsService for the pending account doc. */
   async signUp(email: string, password: string): Promise<User> {
