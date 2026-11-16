@@ -1,10 +1,7 @@
 export const environment = {
   production: false,
-  // The three state-gated sister apps' Hosting URLs — kept here (not hardcoded in
-  // dashboard.ts) so the staging build configuration can point them at the staging
-  // deploys instead. battle-calculator/furnace-calculator stay hardcoded in
-  // dashboard.ts: they're untouched by the multi-state rollout and have no staging
-  // equivalent.
+  // The three state-gated sister apps' Hosting URLs. battle-calculator/furnace-calculator
+  // stay hardcoded in dashboard.ts.
   sisterApps: {
     foundryPlanner: 'https://foundry-planner.web.app',
     svsPrep: 'https://svs-prep.web.app',
