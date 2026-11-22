@@ -1,0 +1,9 @@
+{
+  "name": "gift-codes",
+  "private": true,
+  "type": "module",
+  "description": "Scheduled Whiteout Survival gift code redeemer, see redeem.mjs",
+  "dependencies": {
+    "firebase-admin": "^13.6.0"
+  }
+}

@@ -1,0 +1,58 @@
+name: Redeem gift codes
+
+# Redeems new Whiteout Survival gift codes for every player in the Foundry Planner
+# `players` collection. See scripts/gift-codes/redeem.mjs for the full flow.
+#
+# - pull_request: dry run only. Reads players and scrapes the code sources, sends nothing
+#   to Century Games and writes nothing to Firestore.
+# - schedule / workflow_dispatch: live run. Only takes effect once this file is on main.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'   # daily, 06:17 UTC
+  workflow_dispatch:
+    inputs:
+      codes:
+        description: 'Gift codes to redeem now, comma separated (optional; sources are scraped anyway)'
+        required: false
+      dry_run:
+        description: 'Dry run (send nothing, write nothing)'
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - 'scripts/gift-codes/**'
+      - '.github/workflows/gift-codes.yml'
+
+concurrency:
+  group: gift-codes
+  cancel-in-progress: false
+
+jobs:
+  redeem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: scripts/gift-codes
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: scripts/gift-codes/package-lock.json
+
+      - run: npm ci
+
+      - name: Write Firebase service account key
+        run: echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/firebase-sa.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - run: node redeem.mjs
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
+          GIFT_CODES: ${{ inputs.codes }}
+          DRY_RUN: ${{ github.event_name == 'pull_request' || inputs.dry_run == true }}
