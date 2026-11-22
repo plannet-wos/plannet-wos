@@ -150,6 +150,11 @@ async function scrape() {
 // ---------- main ----------
 
 initializeApp({ credential: applicationDefault(), projectId: 'tal-coordinator' });
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  // Which service account this is matters for IAM (it needs Cloud Datastore User); the email isn't secret.
+  const { readFileSync } = await import('node:fs');
+  log(`service account: ${JSON.parse(readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8')).client_email}`);
+}
 const db = getFirestore();
 
 const playersSnap = await db.collection('players').get();
