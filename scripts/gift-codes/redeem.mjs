@@ -33,11 +33,11 @@ const REDEEM_URL = 'https://wos-giftcode-api.centurygame.com/api/gift_code';
 const ORIGIN = 'https://wos-giftcode.centurygame.com';
 const ENCRYPT_KEY = 'tB87#kPtkxqOS2'; // ships in Century Games' public web client
 
+// Only pages that serve plain HTTP clients. wostools.net, whiteoutsurvival-community.com and
+// destructoid.com answer 403 to automated requests, so they're left out on purpose rather than
+// worked around. Anything missed here can be added by hand via the workflow's `codes` input.
 const SOURCES = [
-  'https://wostools.net/gift-codes',
-  'https://www.whiteoutsurvival-community.com/gift-codes.html',
   'https://www.pocketgamer.com/whiteout-survival/codes/',
-  'https://www.destructoid.com/whiteout-survival-codes/',
 ];
 
 const DELAY_MS = 1200;            // between players
