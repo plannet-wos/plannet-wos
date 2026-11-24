@@ -165,10 +165,15 @@ const players = playersSnap.docs
 log(`${players.length} player(s) eligible (of ${playersSnap.size})`);
 if (!players.length) process.exit(0);
 
+const codesCol = db.collection('gift_codes');
 const candidates = await scrape();
 for (const c of manualCodes) candidates.set(c, 'manual');
+// Codes already known to be live, so players a previous run couldn't reach (429s, timeouts)
+// get another try even once the code is no longer scraped or typed in.
+for (const d of (await codesCol.where('status', '==', 'active').get()).docs) {
+  if (!candidates.has(d.id)) candidates.set(d.id, d.get('source') ?? 'known');
+}
 
-const codesCol = db.collection('gift_codes');
 const toRun = [];
 let newChecked = 0;
 for (const [code, source] of candidates) {
