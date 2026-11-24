@@ -1,8 +1,8 @@
 name: Check player states
 
-# Finds planner players who have left their state. See scripts/gift-codes/check-states.mjs.
+# Finds planner players who have left their state (probes the gift-code API with a fake code). See scripts/gift-codes/check-states.mjs.
 #
-# - pull_request: test lookup of a few fixed IDs only. No Firestore access, no writes.
+# - pull_request: test probe of a few fixed IDs only. No Firestore access, no writes.
 # - workflow_dispatch: `ids` set -> just look those up. Otherwise check every player and
 #   report who left; `clean` also deletes them. Only available once this file is on main.
 

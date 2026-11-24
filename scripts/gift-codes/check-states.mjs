@@ -1,27 +1,32 @@
 /**
  * Finds Foundry Planner players who have left their state, using the same Century Games
- * web API the gift-code redeemer uses (see redeem.mjs). Run by .github/workflows/player-states.yml.
+ * gift-code API the redeemer uses (see redeem.mjs). Run by .github/workflows/player-states.yml.
  *
- *   node check-states.mjs --ids 123,456     # just look these IDs up and print name + state
- *   node check-states.mjs                   # check every player, report who left (no writes)
- *   node check-states.mjs --clean           # same, then delete the players who left
+ *   node check-states.mjs --ids 123,456 [--state 3038]  # just probe these IDs and print the answer
+ *   node check-states.mjs                               # check every player, report who left (no writes)
+ *   node check-states.mjs --clean                       # same, then delete the players who left
  *
- * The lookup (POST /api/player, signed like /api/gift_code) returns the player's current
- * nickname and state (`kid`), but not their alliance. A player's planner state is the prefix
- * of their `allianceId` (e.g. `3038-hoc` -> 3038). Only a successful lookup with a different
- * state counts as "left": errors, unknown IDs and rate limits are reported, never deleted.
+ * Century removed its player lookup (/api/player) in 2026, so this probes /api/gift_code with a
+ * code that doesn't exist and the player's planner state (`kid`, the prefix of `allianceId`).
+ * Nothing can be redeemed with a made-up code. The answer tells the cases apart:
+ *  - CDK NOT FOUND   -> the player passed the state check, so they're still in that state
+ *  - USER INFO ERROR -> the player exists but not in that state: they left
+ *  - ROLE NOT EXIST  -> the ID doesn't exist at all
+ * Anything else (rate limits, transport errors) is reported and never deleted.
  */
 import { createHash } from 'node:crypto';
 
-const PLAYER_URL = 'https://wos-giftcode-api.centurygame.com/api/player';
+const REDEEM_URL = 'https://wos-giftcode-api.centurygame.com/api/gift_code';
 const ORIGIN = 'https://wos-giftcode.centurygame.com';
 const ENCRYPT_KEY = 'tB87#kPtkxqOS2'; // ships in Century Games' public web client
+const PROBE_CODE = 'PLANNETSTATECHECK'; // deliberately not a real code
 const DELAY_MS = 1200;
 const TOO_FREQUENT_WAIT_MS = 60_000;
 
 const args = process.argv.slice(2);
-const idsArg = args.includes('--ids') ? args[args.indexOf('--ids') + 1] ?? '' : '';
-const ids = `${idsArg},${process.env.PLAYER_IDS ?? ''}`.split(/[\s,]+/).filter(Boolean);
+const arg = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] ?? '' : '');
+const ids = `${arg('--ids')},${process.env.PLAYER_IDS ?? ''}`.split(/[\s,]+/).filter(Boolean);
+const idsState = arg('--state') || process.env.STATE || '3038';
 const clean = args.includes('--clean') || process.env.CLEAN === 'true';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -32,12 +37,12 @@ function sign(data) {
   return { sign: createHash('md5').update(s + ENCRYPT_KEY).digest('hex'), ...data };
 }
 
-/** -> { ok: true, name, state } | { ok: false, error } */
-async function lookup(fid) {
+/** -> 'in_state' | 'left' | 'no_such_player' | 'error: ...' */
+async function probe(fid, kid) {
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
-      const body = new URLSearchParams(sign({ fid, time: String(Date.now()) }));
-      const res = await fetch(PLAYER_URL, {
+      const body = new URLSearchParams(sign({ cdk: PROBE_CODE, fid, kid: String(kid), time: String(Math.floor(Date.now() / 1000)) }));
+      const res = await fetch(REDEEM_URL, {
         method: 'POST',
         body,
         headers: {
@@ -51,25 +56,25 @@ async function lookup(fid) {
       });
       if (res.status === 429) { await sleep(TOO_FREQUENT_WAIT_MS); continue; }
       if (!res.ok) { log(`  HTTP ${res.status} for ${fid}`); await sleep(2000 * attempt); continue; }
-      const json = await res.json();
-      if (json.code === 0 && json.data?.kid != null) {
-        return { ok: true, name: json.data.nickname, state: String(json.data.kid) };
-      }
-      const error = `${json.msg ?? 'unknown'} (${json.err_code ?? json.code})`;
-      if (/too frequent/i.test(error)) { await sleep(TOO_FREQUENT_WAIT_MS); continue; }
-      return { ok: false, error };
+      const { msg = '', err_code } = await res.json();
+      const m = String(msg).replace(/\.$/, '');
+      if (m === 'TOO FREQUENT') { await sleep(TOO_FREQUENT_WAIT_MS); continue; }
+      if (m === 'TIMEOUT RETRY') { await sleep(3000); continue; }
+      if (m === 'CDK NOT FOUND') return 'in_state';
+      if (m === 'USER INFO ERROR') return 'left';
+      if (err_code === 40001 && /not exist/i.test(m)) return 'no_such_player';
+      return `error: ${m} (${err_code})`;
     } catch (e) {
       log(`  request failed for ${fid}: ${e.message}`);
       await sleep(2000 * attempt);
     }
   }
-  return { ok: false, error: 'no answer after retries' };
+  return 'error: no answer after retries';
 }
 
 if (ids.length) {
   for (const fid of ids) {
-    const r = await lookup(fid);
-    log(fid, r.ok ? `${r.name} | state ${r.state}` : `ERROR ${r.error}`);
+    log(fid, `state ${idsState}:`, await probe(fid, idsState));
     await sleep(DELAY_MS);
   }
   process.exit(0);
@@ -90,16 +95,15 @@ log(`checking ${players.length} player(s) (of ${snap.size})`);
 const left = [];
 const failed = [];
 for (const p of players) {
-  const r = await lookup(p.fid);
-  const plannerState = p.allianceId.split('-')[0];
-  if (!r.ok) failed.push(`${p.fid} ${p.name} [${p.allianceId}]: ${r.error}`);
-  else if (r.state !== plannerState) left.push({ ...p, now: r });
+  const r = await probe(p.fid, p.allianceId.split('-')[0]);
+  if (r === 'left') left.push(p);
+  else if (r !== 'in_state') failed.push(`${p.fid} ${p.name} [${p.allianceId}]: ${r}`);
   await sleep(DELAY_MS);
 }
 
 log(`LEFT THEIR STATE: ${left.length}`);
-for (const p of left) log(`  ${p.fid} ${p.name} [${p.allianceId}] -> now "${p.now.name}" in state ${p.now.state}`);
-log(`LOOKUP FAILED (left alone): ${failed.length}`);
+for (const p of left) log(`  ${p.fid} ${p.name} [${p.allianceId}]`);
+log(`NOT CONFIRMED (left alone): ${failed.length}`);
 for (const f of failed) log(`  ${f}`);
 
 if (clean && left.length) {
