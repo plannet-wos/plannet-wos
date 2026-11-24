@@ -1,0 +1,57 @@
+name: Check player states
+
+# Finds planner players who have left their state. See scripts/gift-codes/check-states.mjs.
+#
+# - pull_request: test lookup of a few fixed IDs only. No Firestore access, no writes.
+# - workflow_dispatch: `ids` set -> just look those up. Otherwise check every player and
+#   report who left; `clean` also deletes them. Only available once this file is on main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: 'Only look up these player IDs, comma separated (optional)'
+        required: false
+      clean:
+        description: 'Delete players who have left their state'
+        type: boolean
+        default: false
+  pull_request:
+    paths:
+      - 'scripts/gift-codes/check-states.mjs'
+      - '.github/workflows/player-states.yml'
+
+concurrency:
+  group: gift-codes   # shares the Century API with the redeemer, so never run both at once
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: scripts/gift-codes
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: scripts/gift-codes/package-lock.json
+
+      - run: npm ci
+
+      - name: Write Firebase service account key
+        if: github.event_name != 'pull_request'
+        run: echo "$FIREBASE_SERVICE_ACCOUNT" > /tmp/firebase-sa.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - run: node check-states.mjs
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/firebase-sa.json
+          # PR test: Blizz (left state 3038) and Hiya (still in HOC, 3038) as a control.
+          PLAYER_IDS: ${{ github.event_name == 'pull_request' && '489347822,487431612' || inputs.ids }}
+          CLEAN: ${{ inputs.clean == true }}
